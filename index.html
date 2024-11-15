@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR 中文识别 Demo</title>
+    <title>OCR with Image Cropping</title>
 </head>
 <body>
-    <h1>OCR 中文和数字识别</h1>
-    <p>上传图片以识别文字内容：</p>
+    <h1>OCR with Specified Area</h1>
     <input type="file" id="imageInput" accept="image/*">
-    <div id="result">OCR 结果将显示在这里。</div>
+    <div id="result">Upload an image to see the OCR result.</div>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
     <script>
@@ -18,32 +17,52 @@
 
         imageInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
-            if (!file) {
-                resultDiv.textContent = "未选择文件";
-                return;
-            }
+            if (!file) return;
 
             const reader = new FileReader();
             reader.onload = function () {
-                console.log('图片加载完成');
-                resultDiv.textContent = "正在识别，请稍候...";
-                
-                // 使用 Tesseract.js 识别中文和数字
-                Tesseract.recognize(reader.result, 'chi_tra+eng', {
-                    logger: info => console.log(info) // 可选：显示识别进度
-                })
+                // 创建一个 Image 对象
+                const img = new Image();
+                img.src = reader.result;
+
+                img.onload = function () {
+                    // 创建一个 Canvas 元素
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    // 设置画布大小为图片大小
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+
+                    // 将图像绘制到 Canvas 上
+                    ctx.drawImage(img, 0, 0);
+
+                    // 裁剪图片，指定区域 (x, y, width, height)
+                    const x = 100, y = 100, width = 300, height = 100;
+                    const croppedImageData = ctx.getImageData(x, y, width, height);
+
+                    // 创建一个新的 Canvas 以显示裁剪后的图像
+                    const croppedCanvas = document.createElement('canvas');
+                    croppedCanvas.width = width;
+                    croppedCanvas.height = height;
+                    const croppedCtx = croppedCanvas.getContext('2d');
+                    croppedCtx.putImageData(croppedImageData, 0, 0);
+
+                    // 将裁剪后的图像转换为 base64 数据 URL
+                    const croppedImageUrl = croppedCanvas.toDataURL();
+
+                    // 使用 Tesseract 识别裁剪后的区域
+                    resultDiv.textContent = "正在识别...";
+                    Tesseract.recognize(croppedImageUrl, 'chi_tra', {
+                        logger: info => console.log(info) // 可选：显示进度
+                    })
                     .then(({ data: { text } }) => {
-                        console.log('OCR 结果:', text);
                         resultDiv.textContent = `OCR 结果：\n${text}`;
                     })
                     .catch(err => {
-                        console.error('OCR 错误:', err);
                         resultDiv.textContent = `错误：${err.message}`;
                     });
-            };
-            reader.onerror = function (err) {
-                console.error('文件读取错误:', err);
-                resultDiv.textContent = `文件读取错误：${err.message}`;
+                };
             };
             reader.readAsDataURL(file);
         });
