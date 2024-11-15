@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR Demo</title>
+    <title>OCR 中文识别 Demo</title>
 </head>
 <body>
-    <h1>OCR on GitHub Pages</h1>
-    <p>Upload an image to see OCR results:</p>
+    <h1>OCR 中文和数字识别</h1>
+    <p>上传图片以识别文字内容：</p>
     <input type="file" id="imageInput" accept="image/*">
-    <div id="result">OCR result will appear here.</div>
+    <div id="result">OCR 结果将显示在这里。</div>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
     <script>
@@ -17,30 +17,33 @@
         const resultDiv = document.getElementById('result');
 
         imageInput.addEventListener('change', (event) => {
-            console.log('File input changed');
             const file = event.target.files[0];
             if (!file) {
-                console.log('No file selected');
-                resultDiv.textContent = "No file selected.";
+                resultDiv.textContent = "未选择文件";
                 return;
             }
 
             const reader = new FileReader();
             reader.onload = function () {
-                console.log('Base64 Image Data:', reader.result);
-                Tesseract.recognize(reader.result, 'eng')
+                console.log('图片加载完成');
+                resultDiv.textContent = "正在识别，请稍候...";
+                
+                // 使用 Tesseract.js 识别中文和数字
+                Tesseract.recognize(reader.result, 'chi_tra.traineddata', {
+                    logger: info => console.log(info) // 可选：显示识别进度
+                })
                     .then(({ data: { text } }) => {
-                        console.log('OCR Result:', text);
-                        resultDiv.textContent = `OCR Result: ${text}`;
+                        console.log('OCR 结果:', text);
+                        resultDiv.textContent = `OCR 结果：\n${text}`;
                     })
                     .catch(err => {
-                        console.error('OCR Error:', err);
-                        resultDiv.textContent = `Error: ${err.message}`;
+                        console.error('OCR 错误:', err);
+                        resultDiv.textContent = `错误：${err.message}`;
                     });
             };
             reader.onerror = function (err) {
-                console.error('FileReader Error:', err);
-                resultDiv.textContent = `Error reading file: ${err.message}`;
+                console.error('文件读取错误:', err);
+                resultDiv.textContent = `文件读取错误：${err.message}`;
             };
             reader.readAsDataURL(file);
         });
