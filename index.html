@@ -3,17 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR with Image Cropping</title>
+    <title>OCR with Image Cropping and Red Box</title>
 </head>
 <body>
-    <h1>OCR with Specified Area</h1>
+    <h1>OCR with Specified Area and Red Box</h1>
     <input type="file" id="imageInput" accept="image/*">
     <div id="result">Upload an image to see the OCR result.</div>
+    <div id="croppedImageContainer">
+        <p>Original Image with Cropped Area</p>
+        <canvas id="croppedCanvas"></canvas>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
     <script>
         const imageInput = document.getElementById('imageInput');
         const resultDiv = document.getElementById('result');
+        const croppedCanvas = document.getElementById('croppedCanvas');
+        const croppedCtx = croppedCanvas.getContext('2d');
 
         imageInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
@@ -21,40 +27,57 @@
 
             const reader = new FileReader();
             reader.onload = function () {
-                // 创建一个 Image 对象
+                // Create an image object
                 const img = new Image();
                 img.src = reader.result;
 
                 img.onload = function () {
-                    // 创建一个 Canvas 元素
+                    // Create a canvas to draw the original image
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
 
-                    // 设置画布大小为图片大小
+                    // Set canvas size to match the image size
                     canvas.width = img.width;
                     canvas.height = img.height;
 
-                    // 将图像绘制到 Canvas 上
+                    // Draw the image on the canvas
                     ctx.drawImage(img, 0, 0);
 
-                    // 裁剪图片，指定区域 (x, y, width, height)
+                    // Define the cropping area (x, y, width, height)
                     const x = 100, y = 100, width = 300, height = 100;
+
+                    // Draw a red box around the cropped area on the original image
+                    ctx.strokeStyle = 'red';
+                    ctx.lineWidth = 5;
+                    ctx.strokeRect(x, y, width, height);
+
+                    // Display the cropped canvas with the red box
+                    croppedCanvas.width = img.width;
+                    croppedCanvas.height = img.height;
+                    croppedCtx.drawImage(canvas, 0, 0);
+
+                    // Crop the image and extract the image data
                     const croppedImageData = ctx.getImageData(x, y, width, height);
 
-                    // 创建一个新的 Canvas 以显示裁剪后的图像
-                    const croppedCanvas = document.createElement('canvas');
-                    croppedCanvas.width = width;
-                    croppedCanvas.height = height;
-                    const croppedCtx = croppedCanvas.getContext('2d');
-                    croppedCtx.putImageData(croppedImageData, 0, 0);
+                    // Create a new canvas to show the cropped area
+                    const finalCanvas = document.createElement('canvas');
+                    finalCanvas.width = width;
+                    finalCanvas.height = height;
+                    const finalCtx = finalCanvas.getContext('2d');
+                    finalCtx.putImageData(croppedImageData, 0, 0);
 
-                    // 将裁剪后的图像转换为 base64 数据 URL
-                    const croppedImageUrl = croppedCanvas.toDataURL();
+                    // Show the cropped image
+                    const croppedImageUrl = finalCanvas.toDataURL();
+                    const croppedImageElement = new Image();
+                    croppedImageElement.src = croppedImageUrl;
 
-                    // 使用 Tesseract 识别裁剪后的区域
+                    // Append the cropped image to the page
                     resultDiv.textContent = "正在识别...";
-                    Tesseract.recognize(croppedImageUrl, 'chi_tra', {
-                        logger: info => console.log(info) // 可选：显示进度
+                    document.body.appendChild(croppedImageElement);
+
+                    // Use Tesseract.js to recognize the cropped area
+                    Tesseract.recognize(croppedImageUrl, 'chi_sim', {
+                        logger: info => console.log(info)
                     })
                     .then(({ data: { text } }) => {
                         resultDiv.textContent = `OCR 结果：\n${text}`;
