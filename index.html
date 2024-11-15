@@ -17,21 +17,30 @@
         const resultDiv = document.getElementById('result');
 
         imageInput.addEventListener('change', (event) => {
+            console.log('File input changed');
             const file = event.target.files[0];
             if (!file) {
+                console.log('No file selected');
                 resultDiv.textContent = "No file selected.";
                 return;
             }
 
             const reader = new FileReader();
             reader.onload = function () {
+                console.log('Base64 Image Data:', reader.result);
                 Tesseract.recognize(reader.result, 'eng')
                     .then(({ data: { text } }) => {
+                        console.log('OCR Result:', text);
                         resultDiv.textContent = `OCR Result: ${text}`;
                     })
                     .catch(err => {
+                        console.error('OCR Error:', err);
                         resultDiv.textContent = `Error: ${err.message}`;
                     });
+            };
+            reader.onerror = function (err) {
+                console.error('FileReader Error:', err);
+                resultDiv.textContent = `Error reading file: ${err.message}`;
             };
             reader.readAsDataURL(file);
         });
