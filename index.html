@@ -5,12 +5,81 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OCR with Multiple Cropped Areas and Red Boxes</title>
     <style>
-        /* 控制图片大小，使其适应屏幕 */
-        #croppedImageContainer img {
-            max-width: 100%;  /* 限制宽度为100%（屏幕宽度的最大值） */
-            height: auto;     /* 保持比例 */
-            display: block;   /* 去除图片下方的空隙 */
-            margin: 10px 0;   /* 添加一点间距 */
+        /* 全局样式 */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f4f4f9;
+        }
+
+        h1 {
+            font-size: 1.5em;
+            text-align: center;
+            margin: 20px;
+        }
+
+        /* 使页面元素自适应手机尺寸 */
+        #croppedImageContainer {
+            width: 100%;
+            max-width: 90%;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        #croppedCanvas {
+            width: 100%;
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin-top: 20px;
+        }
+
+        input[type="file"] {
+            margin-top: 20px;
+            padding: 10px;
+            font-size: 1em;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        #result {
+            margin-top: 20px;
+            font-size: 1.1em;
+            color: #333;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            max-width: 90%;
+            text-align: center;
+        }
+
+        /* 小屏设备优化 */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.2em;
+            }
+
+            input[type="file"] {
+                width: 100%;
+                padding: 12px;
+                font-size: 1.2em;
+            }
+
+            #result {
+                font-size: 1em;
+            }
+
+            #croppedImageContainer {
+                max-width: 100%;
+            }
         }
     </style>
 </head>
