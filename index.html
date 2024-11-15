@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR Demo</title>
+</head>
+<body>
+    <h1>OCR on GitHub Pages</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="result">Upload an image to see the OCR result.</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const resultDiv = document.getElementById('result');
+
+        imageInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function () {
+                Tesseract.recognize(reader.result, 'eng')
+                    .then(({ data: { text } }) => {
+                        resultDiv.textContent = `OCR Result: ${text}`;
+                    })
+                    .catch(err => {
+                        resultDiv.textContent = `Error: ${err.message}`;
+                    });
+            };
+            reader.readAsDataURL(file);
+        });
+    </script>
+</body>
+</html>
