@@ -29,7 +29,7 @@
                 resultDiv.textContent = "正在识别，请稍候...";
                 
                 // 使用 Tesseract.js 识别中文和数字
-                Tesseract.recognize(reader.result, 'chi_tra.traineddata', {
+                Tesseract.recognize(reader.result, 'chi_tra', {
                     logger: info => console.log(info) // 可选：显示识别进度
                 })
                     .then(({ data: { text } }) => {
