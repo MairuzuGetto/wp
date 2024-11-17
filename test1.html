@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR with Multiple Cropped Areas and Red Boxes</title>
+    <style>
+        /* 全局样式 */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f4f4f9;
+        }
+
+        h1 {
+            font-size: 1.5em;
+            text-align: center;
+            margin: 20px;
+        }
+
+        /* 使页面元素自适应手机尺寸 */
+        #croppedImageContainer {
+            width: 100%;
+            max-width: 100%;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        #croppedCanvas {
+            width: 100%;
+            height: auto; /* 保持比例 */
+            display: block;
+            margin-top: 20px;
+        }
+
+        input[type="file"] {
+            margin-top: 20px;
+            padding: 10px;
+            font-size: 1em;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        #result {
+            margin-top: 20px;
+            font-size: 1.1em;
+            color: #333;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            max-width: 90%;
+            text-align: center;
+        }
+
+        /* 小屏设备优化 */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.2em;
+            }
+
+            input[type="file"] {
+                width: 100%;
+                padding: 12px;
+                font-size: 1.2em;
+            }
+
+            #result {
+                font-size: 1em;
+            }
+
+            #croppedImageContainer {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>OCR with Multiple Specified Areas and Red Boxes</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <div id="result">Upload an image to see the OCR result.</div>
+    <div id="croppedImageContainer">
+        <p>Original Image with Cropped Areas</p>
+        <canvas id="croppedCanvas"></canvas>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const resultDiv = document.getElementById('result');
+        const croppedCanvas = document.getElementById('croppedCanvas');
+        const croppedCtx = croppedCanvas.getContext('2d');
+
+        imageInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function () {
+                // Create an image object
+                const img = new Image();
+                img.src = reader.result;
+
+                img.onload = function () {
+                    // Create a canvas to draw the original image
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    // Set canvas size to match the image size
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+
+                    // Draw the image on the canvas
+                    ctx.drawImage(img, 0, 0);
+
+                    // Define multiple cropping areas (x, y, width, height)
+                    const regions = [
+                        { x: 1300, y: 2100, width: 360, height: 120 }, // First area
+                        { x: 1000, y: 1500, width: 360, height: 120 }, // Second area
+                        { x: 1000, y: 1800, width: 360, height: 120 }  // Third area
+                    ];
+
+                    // Draw red boxes for each cropping area
+                    ctx.strokeStyle = 'red';
+                    ctx.lineWidth = 5;
+                    regions.forEach(region => {
+                        ctx.strokeRect(region.x, region.y, region.width, region.height);
+                    });
+
+                    // Display the image with all the red boxes drawn
+                    croppedCanvas.width = img.width;
+                    croppedCanvas.height = img.height;
+                    croppedCtx.drawImage(canvas, 0, 0);
+
+                    // Process each cropping area
+                    regions.forEach((region, index) => {
+                        // Crop the image based on the region
+                        const croppedImageData = ctx.getImageData(region.x, region.y, region.width, region.height);
+
+                        // Create a new canvas to show the cropped area
+                        const finalCanvas = document.createElement('canvas');
+                        finalCanvas.width = region.width;
+                        finalCanvas.height = region.height;
+                        const finalCtx = finalCanvas.getContext('2d');
+                        finalCtx.putImageData(croppedImageData, 0, 0);
+
+                        // Show the cropped image
+                        const croppedImageUrl = finalCanvas.toDataURL();
+                        const croppedImageElement = new Image();
+                        croppedImageElement.src = croppedImageUrl;
+
+                        // Append the cropped image to the page
+                        resultDiv.textContent = "正在识别...";
+                        document.body.appendChild(croppedImageElement);
+
+                        // Use Tesseract.js to recognize the cropped area
+                        Tesseract.recognize(croppedImageUrl, 'chi_sim', {
+                            logger: info => console.log(info)
+                        })
+                        .then(({ data: { text } }) => {
+                            resultDiv.textContent = `OCR 结果（区域 ${index + 1}）:\n${text}`;
+                        })
+                        .catch(err => {
+                            resultDiv.textContent = `错误：${err.message}`;
+                        });
+                    });
+                };
+            };
+            reader.readAsDataURL(file);
+        });
+    </script>
+</body>
+</html>
