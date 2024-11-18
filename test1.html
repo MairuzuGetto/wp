@@ -70,11 +70,18 @@
                         if (/\d+/.test(word.text)) { // 匹配数字
                             numbers.push(word.text);
 
-                            // 绘制红框标记数字
-                            const { x0, y0, x1, y1 } = word.bbox; // 获取单词边界框
-                            ctx.strokeStyle = "red";
-                            ctx.lineWidth = 2;
-                            ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+                            // 获取单词边界框并绘制红框
+                            const bbox = word.bbox;
+                            if (bbox) {
+                                ctx.strokeStyle = "red";
+                                ctx.lineWidth = 2;
+                                ctx.strokeRect(
+                                    bbox.x0, // 左上角 X 坐标
+                                    bbox.y0, // 左上角 Y 坐标
+                                    bbox.x1 - bbox.x0, // 宽度
+                                    bbox.y1 - bbox.y0  // 高度
+                                );
+                            }
                         }
                     });
 
