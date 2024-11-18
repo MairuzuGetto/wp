@@ -3,30 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR 数字提取</title>
+    <title>数字提取</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
-        }
-        .container {
-            max-width: 600px;
-            margin: auto;
             text-align: center;
         }
         #output {
             margin-top: 20px;
             font-size: 1.2em;
-            color: #333;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>OCR 数字提取</h1>
-        <input type="file" id="upload" accept="image/*">
-        <div id="output">识别结果将在这里显示...</div>
-    </div>
+    <h1>从图片中提取三组数字</h1>
+    <input type="file" id="imageUpload" accept="image/*">
+    <div id="output">上传图片后，结果将在这里显示...</div>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v4.0.3/dist/tesseract.min.js"></script>
     <script src="script.js"></script>
 </body>
