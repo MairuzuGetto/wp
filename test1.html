@@ -1,102 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR 数字提取与红框标记</title>
+    <title>圖片處理與文字提取</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
             margin: 20px;
         }
-        canvas, img {
+        #outputImage {
+            margin-top: 20px;
+            border: 1px solid #ccc;
             max-width: 100%;
-            margin-top: 20px;
         }
-        #output {
-            margin-top: 20px;
-            font-size: 1.2em;
+        canvas {
+            display: none;
         }
     </style>
 </head>
 <body>
-    <h1>OCR 数字提取与红框标记</h1>
+    <h1>圖片裁剪與文字提取</h1>
+    <p>上傳圖片後，提取數據並生成新圖片。</p>
     <input type="file" id="imageUpload" accept="image/*">
     <canvas id="canvas"></canvas>
-    <div id="output">上传图片后，结果将在这里显示...</div>
+    <div id="output"></div>
+    <img id="outputImage" alt="生成的圖片" />
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v4.0.3/dist/tesseract.min.js"></script>
-    <script>
-        document.getElementById("imageUpload").addEventListener("change", function (event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function () {
-                    const img = new Image();
-                    img.src = reader.result;
-                    img.onload = function () {
-                        processImage(img);
-                    };
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        function processImage(image) {
-            const output = document.getElementById("output");
-            const canvas = document.getElementById("canvas");
-            const ctx = canvas.getContext("2d");
-
-            // 设置 canvas 尺寸为图片尺寸
-            canvas.width = image.width;
-            canvas.height = image.height;
-
-            // 绘制图片到 canvas
-            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-            output.textContent = "正在识别中，请稍候...";
-
-            // 使用 Tesseract.js 识别文字
-            Tesseract.recognize(image.src, 'chi_sim', {
-                logger: (info) => console.log(info), // 可选：查看 OCR 过程日志
-            })
-                .then(({ data }) => {
-                    console.log("识别的文字：", data.text);
-
-                    // 提取所有单词位置和内容
-                    const words = data.words;
-                    const numbers = [];
-                    
-                    words.forEach((word) => {
-                        if (/\d+/.test(word.text)) { // 匹配数字
-                            numbers.push(word.text);
-
-                            // 获取单词边界框并绘制红框
-                            const bbox = word.bbox;
-                            if (bbox) {
-                                ctx.strokeStyle = "red";
-                                ctx.lineWidth = 2;
-                                ctx.strokeRect(
-                                    bbox.x0, // 左上角 X 坐标
-                                    bbox.y0, // 左上角 Y 坐标
-                                    bbox.x1 - bbox.x0, // 宽度
-                                    bbox.y1 - bbox.y0  // 高度
-                                );
-                            }
-                        }
-                    });
-
-                    // 显示提取的数字
-                    if (numbers.length >= 3) {
-                        output.textContent = `提取的数字：${numbers.slice(0, 3).join(', ')}`;
-                    } else {
-                        output.textContent = "未能提取到三组数字，请检查图片清晰度。";
-                    }
-                })
-                .catch((err) => {
-                    console.error(err);
-                    output.textContent = "识别失败，请重试。";
-                });
-        }
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
