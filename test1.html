@@ -1,33 +1,15 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>圖片處理與文字提取</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 20px;
-        }
-        #outputImage {
-            margin-top: 20px;
-            border: 1px solid #ccc;
-            max-width: 100%;
-        }
-        canvas {
-            display: none;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tesseract.js 示例</title>
 </head>
 <body>
-    <h1>圖片裁剪與文字提取</h1>
-    <p>上傳圖片後，提取數據並生成新圖片。</p>
-    <input type="file" id="imageUpload" accept="image/*">
-    <canvas id="canvas"></canvas>
-    <div id="output"></div>
-    <img id="outputImage" alt="生成的圖片" />
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v4.0.3/dist/tesseract.min.js"></script>
-    <script src="script.js"></script>
+  <input type="file" id="imageInput" accept="image/*">
+  <pre id="outputText"></pre>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js"></script>
+  <script src="./index.js"></script>
 </body>
 </html>
