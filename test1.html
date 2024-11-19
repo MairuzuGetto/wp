@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tesseract.js 示例</title>
+  <title>模板匹配</title>
 </head>
 <body>
-  <input type="file" id="imageInput" accept="image/*">
-  <pre id="outputText"></pre>
-
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
+  <h1>模板匹配示例</h1>
+  <input type="file" id="mainImageInput" accept="image/*" />
+  <input type="file" id="templateImageInput" accept="image/*" />
+  <button id="matchButton">开始匹配</button>
+  <p id="result"></p>
+  <canvas id="canvas" style="border: 1px solid black;"></canvas>
+  
   <script src="script.js"></script>
 </body>
 </html>
