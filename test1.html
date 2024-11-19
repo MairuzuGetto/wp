@@ -1,18 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>模板匹配</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文字定位裁剪</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v4.0.0/dist/tesseract.min.js"></script>
 </head>
 <body>
-  <h1>模板匹配示例</h1>
-  <input type="file" id="mainImageInput" accept="image/*" />
-  <input type="file" id="templateImageInput" accept="image/*" />
-  <button id="matchButton">开始匹配</button>
-  <p id="result"></p>
-  <canvas id="canvas" style="border: 1px solid black;"></canvas>
-  
-  <script src="script.js"></script>
+    <h1>文字定位與裁剪</h1>
+    <input type="file" id="imageUpload" accept="image/*">
+    <canvas id="canvas" style="display:none;"></canvas>
+    <img id="resultImage" alt="裁剪結果">
+    <script src="script.js"></script>
 </body>
 </html>
