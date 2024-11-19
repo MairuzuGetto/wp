@@ -3,51 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>静态网页 OCR 精度优化</title>
+    <title>OCR 图像预处理显示</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@v4.0.0/dist/tesseract.min.js"></script>
+    <style>
+        #processedImages img {
+            max-width: 300px;
+            margin: 10px;
+            border: 1px solid #ccc;
+        }
+    </style>
 </head>
 <body>
-    <h1>上传图片进行文字识别</h1>
-    <input type="file" id="imageUpload" accept="image/*">
-    <canvas id="canvas" style="display: none;"></canvas>
+    <h1>上传图片并查看预处理结果</h1>
+    <input type="file" id="imageUpload" accept="image/*" multiple>
+    <div id="processedImages">
+        <h2>预处理后图片：</h2>
+    </div>
     <p id="result">OCR 结果会显示在这里</p>
 
     <script>
         document.getElementById('imageUpload').addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
 
-            const img = new Image();
-            img.src = URL.createObjectURL(file);
+            const processedImagesDiv = document.getElementById('processedImages');
+            processedImagesDiv.innerHTML = ''; // 清空之前的结果
 
-            img.onload = () => {
-                const canvas = document.getElementById('canvas');
-                const ctx = canvas.getContext('2d');
-                canvas.width = img.width;
-                canvas.height = img.height;
+            Array.from(files).forEach((file) => {
+                const img = new Image();
+                img.src = URL.createObjectURL(file);
 
-                // 图片预处理（灰度化）
-                ctx.drawImage(img, 0, 0);
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const data = imageData.data;
-                for (let i = 0; i < data.length; i += 4) {
-                    const grayscale = data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11;
-                    data[i] = data[i + 1] = data[i + 2] = grayscale;
-                }
-                ctx.putImageData(imageData, 0, 0);
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
 
-                // OCR 识别
-                Tesseract.recognize(
-                    canvas.toDataURL(),
-                    'chi_sim', // 使用简体中文模型
-                    {
-                        tessedit_char_whitelist: '0123456789台北市停車開單管理',
-                        psm: 6 // 单一文本块模式
+                    // 图片预处理（灰度化）
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    for (let i = 0; i < data.length; i += 4) {
+                        const grayscale = data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11;
+                        data[i] = data[i + 1] = data[i + 2] = grayscale; // 灰度化
                     }
-                ).then(({ data: { text } }) => {
-                    document.getElementById('result').innerText = `OCR 结果：${text}`;
-                });
-            };
+                    ctx.putImageData(imageData, 0, 0);
+
+                    // 显示预处理后的图像
+                    const processedImg = new Image();
+                    processedImg.src = canvas.toDataURL();
+                    processedImagesDiv.appendChild(processedImg);
+
+                    // OCR 识别
+                    Tesseract.recognize(
+                        canvas.toDataURL(),
+                        'chi_sim', // 简体中文模型
+                        {
+                            tessedit_char_whitelist: '0123456789台北市停車開單管理',
+                            psm: 6 // 单一文本块模式
+                        }
+                    ).then(({ data: { text } }) => {
+                        const resultDiv = document.getElementById('result');
+                        resultDiv.innerHTML += `<p>文件 ${file.name} 的识别结果：${text}</p>`;
+                    });
+                };
+            });
         });
     </script>
 </body>
