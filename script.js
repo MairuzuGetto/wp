@@ -1,91 +1,52 @@
-const mainImageInput = document.getElementById('mainImageInput');
-const templateImageInput = document.getElementById('templateImageInput');
-const matchButton = document.getElementById('matchButton');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const resultText = document.getElementById('result');
+document.getElementById('imageUpload').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
 
-let mainImage, templateImage;
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
 
-mainImageInput.addEventListener('change', (e) => loadImage(e, 'main'));
-templateImageInput.addEventListener('change', (e) => loadImage(e, 'template'));
+    img.onload = async () => {
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
 
-function loadImage(event, type) {
-  const file = event.target.files[0];
-  if (!file) return;
+        // 使用 Tesseract.js 進行文字識別
+        const { data: { words } } = await Tesseract.recognize(img.src, 'chi_sim'); // 簡體中文
+        console.log(words);
 
-  const img = new Image();
-  img.onload = () => {
-    if (type === 'main') {
-      mainImage = img;
-      canvas.width = mainImage.width;
-      canvas.height = mainImage.height;
-      ctx.drawImage(mainImage, 0, 0);
-    } else if (type === 'template') {
-      templateImage = img;
-    }
-  };
-  img.src = URL.createObjectURL(file);
-}
+        // 查找目標文字的位置
+        const targetWord = '台北市停車開單管理';
+        let targetBox = null;
 
-matchButton.addEventListener('click', () => {
-  if (!mainImage || !templateImage) {
-    resultText.textContent = '请先上传主图和模板图！';
-    return;
-  }
+        words.forEach(word => {
+            if (word.text.includes(targetWord)) {
+                targetBox = word.bbox; // 獲取文字邊界框
+            }
+        });
 
-  const mainData = getImageData(mainImage);
-  const templateData = getImageData(templateImage);
-
-  const match = findTemplate(mainData, templateData);
-
-  if (match) {
-    const { x, y, width, height } = match;
-    ctx.drawImage(mainImage, 0, 0); // 重绘主图
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x, y, width, height);
-    resultText.textContent = `模板匹配成功！位置：(${x}, ${y})`;
-  } else {
-    resultText.textContent = '未找到匹配区域。';
-  }
-});
-
-function getImageData(image) {
-  const tempCanvas = document.createElement('canvas');
-  const tempCtx = tempCanvas.getContext('2d');
-  tempCanvas.width = image.width;
-  tempCanvas.height = image.height;
-  tempCtx.drawImage(image, 0, 0);
-  return tempCtx.getImageData(0, 0, image.width, image.height);
-}
-
-function findTemplate(mainData, templateData) {
-  const { width: mainWidth, height: mainHeight, data: mainPixels } = mainData;
-  const { width: templateWidth, height: templateHeight, data: templatePixels } = templateData;
-
-  for (let y = 0; y <= mainHeight - templateHeight; y++) {
-    for (let x = 0; x <= mainWidth - templateWidth; x++) {
-      if (isMatch(mainPixels, mainWidth, x, y, templatePixels, templateWidth, templateHeight)) {
-        return { x, y, width: templateWidth, height: templateHeight };
-      }
-    }
-  }
-  return null;
-}
-
-function isMatch(mainPixels, mainWidth, startX, startY, templatePixels, templateWidth, templateHeight) {
-  for (let ty = 0; ty < templateHeight; ty++) {
-    for (let tx = 0; tx < templateWidth; tx++) {
-      const mainIndex = ((startY + ty) * mainWidth + (startX + tx)) * 4;
-      const templateIndex = (ty * templateWidth + tx) * 4;
-
-      for (let i = 0; i < 4; i++) { // 比较 RGBA 四个通道
-        if (mainPixels[mainIndex + i] !== templatePixels[templateIndex + i]) {
-          return false;
+        if (!targetBox) {
+            alert('未找到目標文字！');
+            return;
         }
-      }
-    }
-  }
-  return true;
-}
+
+        // 計算裁剪區域（基於目標文字位置調整）
+        const { x0, y0, x1, y1 } = targetBox;
+        const cropX = x0;
+        const cropY = y1 + 10; // 偏移文字框的底部
+        const cropWidth = x1 - x0;
+        const cropHeight = 100; // 自定義裁剪高度
+
+        // 裁剪圖片
+        const croppedCanvas = document.createElement('canvas');
+        croppedCanvas.width = cropWidth;
+        croppedCanvas.height = cropHeight;
+        const croppedCtx = croppedCanvas.getContext('2d');
+        croppedCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+        // 顯示裁剪結果
+        const croppedImage = document.getElementById('resultImage');
+        croppedImage.src = croppedCanvas.toDataURL();
+    };
+});
