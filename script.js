@@ -1,52 +1,91 @@
-// 获取元素
-const imageInput = document.getElementById('imageInput');
-const outputText = document.getElementById('outputText');
+const mainImageInput = document.getElementById('mainImageInput');
+const templateImageInput = document.getElementById('templateImageInput');
+const matchButton = document.getElementById('matchButton');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const resultText = document.getElementById('result');
 
-// 当选择图片时
-imageInput.addEventListener('change', handleImageUpload);
+let mainImage, templateImage;
 
-function handleImageUpload(event) {
+mainImageInput.addEventListener('change', (e) => loadImage(e, 'main'));
+templateImageInput.addEventListener('change', (e) => loadImage(e, 'template'));
+
+function loadImage(event, type) {
   const file = event.target.files[0];
+  if (!file) return;
 
-  if (!file) {
-    outputText.textContent = '未选择文件';
-    return;
-  }
-
-  if (!file.type.startsWith('image/')) {
-    alert('请上传图片文件');
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const img = new Image();
-    img.src = e.target.result;
-    img.onload = function() {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const scale = Math.min(1000 / img.width, 1000 / img.height); // 缩放至最大边不超过 1000px
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      extractTextFromImage(canvas);
-    };
+  const img = new Image();
+  img.onload = () => {
+    if (type === 'main') {
+      mainImage = img;
+      canvas.width = mainImage.width;
+      canvas.height = mainImage.height;
+      ctx.drawImage(mainImage, 0, 0);
+    } else if (type === 'template') {
+      templateImage = img;
+    }
   };
-  reader.readAsDataURL(file);
+  img.src = URL.createObjectURL(file);
 }
 
-function extractTextFromImage(image) {
-  outputText.textContent = '正在提取文字，请稍候...';
+matchButton.addEventListener('click', () => {
+  if (!mainImage || !templateImage) {
+    resultText.textContent = '请先上传主图和模板图！';
+    return;
+  }
 
-  Tesseract.recognize(
-    image,
-    'chi_tra', // 设置语言为中文
-    { logger: info => console.log(info) } // 日志输出，可选
-  ).then(({ data: { text } }) => {
-    console.log(text);
-    outputText.textContent = '提取的文字：\n\n' + text;
-  }).catch(error => {
-    console.error('发生错误：', error);
-    outputText.textContent = '发生错误：无法提取文字。请检查图片内容。';
-  });
+  const mainData = getImageData(mainImage);
+  const templateData = getImageData(templateImage);
+
+  const match = findTemplate(mainData, templateData);
+
+  if (match) {
+    const { x, y, width, height } = match;
+    ctx.drawImage(mainImage, 0, 0); // 重绘主图
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, width, height);
+    resultText.textContent = `模板匹配成功！位置：(${x}, ${y})`;
+  } else {
+    resultText.textContent = '未找到匹配区域。';
+  }
+});
+
+function getImageData(image) {
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  tempCanvas.width = image.width;
+  tempCanvas.height = image.height;
+  tempCtx.drawImage(image, 0, 0);
+  return tempCtx.getImageData(0, 0, image.width, image.height);
+}
+
+function findTemplate(mainData, templateData) {
+  const { width: mainWidth, height: mainHeight, data: mainPixels } = mainData;
+  const { width: templateWidth, height: templateHeight, data: templatePixels } = templateData;
+
+  for (let y = 0; y <= mainHeight - templateHeight; y++) {
+    for (let x = 0; x <= mainWidth - templateWidth; x++) {
+      if (isMatch(mainPixels, mainWidth, x, y, templatePixels, templateWidth, templateHeight)) {
+        return { x, y, width: templateWidth, height: templateHeight };
+      }
+    }
+  }
+  return null;
+}
+
+function isMatch(mainPixels, mainWidth, startX, startY, templatePixels, templateWidth, templateHeight) {
+  for (let ty = 0; ty < templateHeight; ty++) {
+    for (let tx = 0; tx < templateWidth; tx++) {
+      const mainIndex = ((startY + ty) * mainWidth + (startX + tx)) * 4;
+      const templateIndex = (ty * templateWidth + tx) * 4;
+
+      for (let i = 0; i < 4; i++) { // 比较 RGBA 四个通道
+        if (mainPixels[mainIndex + i] !== templatePixels[templateIndex + i]) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
 }
