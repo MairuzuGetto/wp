@@ -24,7 +24,7 @@ function handleImageUpload(event) {
 function extractTextFromImage(image) {
   Tesseract.recognize(
     image,
-    'chi_sim', // 设置语言为中文
+    'chi_tra', // 设置语言为中文
     { logger: info => console.log(info) } // 日志输出，可选
   ).then(({ data: { text } }) => {
     console.log(text);
