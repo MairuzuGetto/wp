@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文字和图片灰度处理</title>
+    <title>图片灰度与二值化处理</title>
     <style>
         canvas {
             display: block;
@@ -12,20 +12,17 @@
     </style>
 </head>
 <body>
-    <h1>原始文字和图片</h1>
-    <p id="text">这是需要处理的文字。</p>
+    <h1>原始图片</h1>
     <img id="image" src="1020.png" alt="示例图片" width="300">
 
-    <h1>灰度处理结果</h1>
+    <h1>灰度与二值化处理结果</h1>
     <canvas id="canvas"></canvas>
 
     <script>
-        // 将图片转为灰度
         const image = document.getElementById('image');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // 灰度化图片处理
         image.onload = () => {
             canvas.width = image.width;
             canvas.height = image.height;
@@ -36,19 +33,26 @@
             // 获取图像数据
             const imageData = ctx.getImageData(0, 0, image.width, image.height);
 
-            // 转换为灰度
+            // 灰度处理 + 二值化
+            const threshold = 128; // 二值化阈值
             for (let i = 0; i < imageData.data.length; i += 4) {
+                // 计算灰度值
                 const r = imageData.data[i];
                 const g = imageData.data[i + 1];
                 const b = imageData.data[i + 2];
                 const gray = 0.299 * r + 0.587 * g + 0.114 * b; // 灰度公式
-                imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = gray;
+
+                // 二值化：灰度值与阈值比较
+                const binary = gray >= threshold ? 255 : 0;
+
+                // 设置为黑白
+                imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = binary;
             }
 
-            // 将灰度图像数据重新绘制到 canvas
+            // 将二值化后的图像数据绘制到 canvas
             ctx.putImageData(imageData, 0, 0);
 
-            // 在灰度图绘制后提取文字
+            // 在处理后进行 OCR
             extractText();
         };
 
