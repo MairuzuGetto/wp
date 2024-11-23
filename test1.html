@@ -107,8 +107,8 @@
 
             try {
                 await worker.load();
-                await worker.loadLanguage('eng');
-                await worker.initialize('eng');
+                await worker.loadLanguage('chi_tra');
+                await worker.initialize('chi_tra');
 
                 const result = await worker.recognize(canvas);
                 return result.data.text;
