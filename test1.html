@@ -9,6 +9,12 @@
             display: block;
             margin-top: 20px;
         }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
@@ -19,7 +25,8 @@
 
     <h1>处理结果</h1>
     <canvas id="canvas"></canvas>
-    <pre id="textResult"></pre>
+    <h2>识别出的文字</h2>
+    <pre id="textResult">等待识别...</pre>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4"></script>
     <script>
@@ -46,16 +53,14 @@
                         // 绘制图片到 canvas
                         ctx.drawImage(image, 0, 0);
 
-                        // 获取图像数据
-                        const imageData = ctx.getImageData(0, 0, image.width, image.height);
-
-                        // 边缘检测（可选轮廓绘制）
-                        const edges = edgeDetection(imageData, image.width, image.height);
+                        // 边缘检测
+                        const edges = edgeDetection(image.width, image.height);
 
                         // 绘制轮廓到原始图像
                         drawContoursOnImage(edges, image.width, image.height);
 
                         // OCR 文字识别
+                        textResult.textContent = '正在识别文字，请稍候...';
                         const recognizedText = await extractText(canvas);
                         textResult.textContent = `识别结果：\n${recognizedText}`;
                     };
@@ -66,9 +71,10 @@
             }
         });
 
-        // 边缘检测函数（可选：简化版）
-        function edgeDetection(imageData, width, height) {
+        // 简单二值化处理（可作为边缘检测）
+        function edgeDetection(width, height) {
             const edges = new Uint8Array(width * height);
+            const imageData = ctx.getImageData(0, 0, width, height);
             const threshold = 128;
 
             for (let i = 0; i < imageData.data.length; i += 4) {
@@ -76,15 +82,13 @@
                 const g = imageData.data[i + 1];
                 const b = imageData.data[i + 2];
                 const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-
-                // 二值化阈值处理
                 edges[i / 4] = gray > threshold ? 255 : 0;
             }
 
             return edges;
         }
 
-        // 在原始图像上绘制轮廓
+        // 绘制轮廓到原始图像
         function drawContoursOnImage(edges, width, height) {
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 1;
@@ -107,8 +111,8 @@
 
             try {
                 await worker.load();
-                await worker.loadLanguage('chi_tra');
-                await worker.initialize('chi_tra');
+                await worker.loadLanguage('eng'); // 可更改为 'chi_sim' 支持中文
+                await worker.initialize('eng');
 
                 const result = await worker.recognize(canvas);
                 return result.data.text;
