@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图像轮廓检测</title>
+    <title>本地图片灰度与二值化处理</title>
     <style>
         canvas {
             display: block;
@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <h1>选择本地图片进行轮廓检测</h1>
+    <h1>选择本地图片进行处理</h1>
 
     <!-- 文件选择框 -->
     <input type="file" id="fileInput" accept="image/*">
@@ -38,6 +38,9 @@
             [-1, -2, -1]
         ];
 
+        // 感兴趣区域 (ROI) 设置
+        const roi = { x: 50, y: 50, width: 200, height: 150 };
+
         // 当用户选择文件时
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
@@ -60,14 +63,14 @@
                         const imageData = ctx.getImageData(0, 0, image.width, image.height);
                         const grayData = grayscale(imageData);
 
-                        // 边缘检测
-                        const edges = edgeDetection(grayData, image.width, image.height);
+                        // 边缘检测 - 仅在 ROI 区域内进行
+                        const edges = edgeDetection(grayData, image.width, image.height, roi);
 
                         // 将边缘绘制到 canvas
                         ctx.putImageData(edges, 0, 0);
 
                         // 提取轮廓并绘制
-                        drawContours(edges, image.width, image.height);
+                        drawContours(edges, image.width, image.height, roi);
                     };
                 };
 
@@ -90,11 +93,11 @@
             return grayData;
         }
 
-        // 边缘检测（使用 Sobel 算子）
-        function edgeDetection(imageData, width, height) {
+        // 边缘检测（使用 Sobel 算子）仅在 ROI 区域内
+        function edgeDetection(imageData, width, height, roi) {
             const edges = new ImageData(width, height);
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
+            for (let y = roi.y; y < roi.y + roi.height; y++) {
+                for (let x = roi.x; x < roi.x + roi.width; x++) {
                     let gx = 0;
                     let gy = 0;
 
@@ -122,13 +125,13 @@
             return edges;
         }
 
-        // 绘制轮廓（简单的轮廓绘制）
-        function drawContours(imageData, width, height) {
+        // 绘制轮廓（简单的轮廓绘制）仅在 ROI 区域内
+        function drawContours(imageData, width, height, roi) {
             ctx.lineWidth = 2;
             ctx.strokeStyle = 'red';
 
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
+            for (let y = roi.y; y < roi.y + roi.height; y++) {
+                for (let x = roi.x; x < roi.x + roi.width; x++) {
                     const index = (y * width + x) * 4;
                     const pixel = imageData.data[index];
 
