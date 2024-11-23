@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>灰度与二值化处理</title>
+    <title>本地图片灰度与二值化处理</title>
     <style>
         canvas {
             display: block;
@@ -62,7 +62,10 @@
                             imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = binary;
                         }
 
-                        // 将二值化后的图像数据绘制到 canvas
+                        // 膨胀操作 - 消除噪声
+                        dilate(imageData, image.width, image.height);
+
+                        // 将处理后的图像数据绘制到 canvas
                         ctx.putImageData(imageData, 0, 0);
 
                         // 在处理后进行 OCR
@@ -74,6 +77,34 @@
                 reader.readAsDataURL(file);
             }
         });
+
+        // 膨胀操作
+        function dilate(imageData, width, height) {
+            const tempData = new Uint8ClampedArray(imageData.data);
+
+            // 膨胀使用3x3结构元素
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const index = (y * width + x) * 4;
+
+                    // 查看当前像素的周围8个邻域像素
+                    let max = 0; // 假设最开始的最大值为0
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const ni = ((y + dy) * width + (x + dx)) * 4;
+                            max = Math.max(max, tempData[ni], tempData[ni + 1], tempData[ni + 2]); // 获取邻域的最大灰度值
+                        }
+                    }
+
+                    // 设置当前像素为邻域最大值
+                    if (max > 0) {
+                        imageData.data[index] = imageData.data[index + 1] = imageData.data[index + 2] = 255;
+                    } else {
+                        imageData.data[index] = imageData.data[index + 1] = imageData.data[index + 2] = 0;
+                    }
+                }
+            }
+        }
 
         // 提取文字内容（使用 Tesseract.js）
         async function extractText() {
