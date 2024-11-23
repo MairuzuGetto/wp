@@ -72,6 +72,9 @@
                             0, 0, roi.width, roi.height // 目标绘制区域
                         );
 
+                        // 预处理图像
+                        preprocessImage(roiCanvas);
+
                         // OCR 文字识别
                         textResult.textContent = '正在识别文字，请稍候...';
                         const recognizedText = await extractText(roiCanvas);
@@ -83,6 +86,50 @@
                 reader.readAsDataURL(file);
             }
         });
+
+        // 图像预处理函数
+        function preprocessImage(canvas) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            // 转灰度图
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                data[i] = data[i + 1] = data[i + 2] = gray;
+            }
+
+            // 应用二值化（阈值 128）
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = data[i];
+                const binary = gray > 128 ? 255 : 0;
+                data[i] = data[i + 1] = data[i + 2] = binary;
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+
+            // 模拟膨胀（简单扩展白色像素）
+            const dilationRadius = 1; // 膨胀半径
+            const tempData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            for (let y = 1; y < canvas.height - 1; y++) {
+                for (let x = 1; x < canvas.width - 1; x++) {
+                    const i = (y * canvas.width + x) * 4;
+                    if (tempData[i] === 255) {
+                        for (let dy = -dilationRadius; dy <= dilationRadius; dy++) {
+                            for (let dx = -dilationRadius; dx <= dilationRadius; dx++) {
+                                const ni = ((y + dy) * canvas.width + (x + dx)) * 4;
+                                data[ni] = data[ni + 1] = data[ni + 2] = 255; // 扩展为白色
+                            }
+                        }
+                    }
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
 
         // 使用 Tesseract.js 提取文字
         async function extractText(canvas) {
