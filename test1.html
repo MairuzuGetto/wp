@@ -111,7 +111,7 @@
 
             try {
                 await worker.load();
-                await worker.loadLanguage('eng'); // 可更改为 'chi_sim' 支持中文
+                await worker.loadLanguage('chi_tra'); // 可更改为 'chi_sim' 支持中文
                 await worker.initialize('eng');
 
                 const result = await worker.recognize(canvas);
