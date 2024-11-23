@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>本地图片灰度与二值化处理</title>
+    <title>文字识别与轮廓绘制</title>
     <style>
         canvas {
             display: block;
@@ -19,40 +19,27 @@
 
     <h1>处理结果</h1>
     <canvas id="canvas"></canvas>
+    <pre id="textResult"></pre>
 
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4"></script>
     <script>
         const fileInput = document.getElementById('fileInput');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-
-        // Sobel 算子用于边缘检测
-        const sobelX = [
-            [-1, 0, 1],
-            [-2, 0, 2],
-            [-1, 0, 1]
-        ];
-
-        const sobelY = [
-            [1, 2, 1],
-            [0, 0, 0],
-            [-1, -2, -1]
-        ];
-
-        // 感兴趣区域 (ROI) 设置
-        const roi = { x: 0, y: 0, width: Infinity, height: Infinity }; // 默认为整幅图像
+        const textResult = document.getElementById('textResult');
 
         // 当用户选择文件时
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                
+
                 // 读取文件为图片URL
                 reader.onload = () => {
                     const image = new Image();
                     image.src = reader.result;
-                    
-                    image.onload = () => {
+
+                    image.onload = async () => {
                         canvas.width = image.width;
                         canvas.height = image.height;
 
@@ -61,13 +48,16 @@
 
                         // 获取图像数据
                         const imageData = ctx.getImageData(0, 0, image.width, image.height);
-                        const grayData = grayscale(imageData);
 
-                        // 边缘检测
-                        const edges = edgeDetection(grayData, image.width, image.height, roi);
+                        // 边缘检测（可选轮廓绘制）
+                        const edges = edgeDetection(imageData, image.width, image.height);
 
                         // 绘制轮廓到原始图像
                         drawContoursOnImage(edges, image.width, image.height);
+
+                        // OCR 文字识别
+                        const recognizedText = await extractText(canvas);
+                        textResult.textContent = `识别结果：\n${recognizedText}`;
                     };
                 };
 
@@ -76,50 +66,21 @@
             }
         });
 
-        // 灰度化图像
-        function grayscale(imageData) {
-            const grayData = new ImageData(imageData.width, imageData.height);
+        // 边缘检测函数（可选：简化版）
+        function edgeDetection(imageData, width, height) {
+            const edges = new Uint8Array(width * height);
+            const threshold = 128;
+
             for (let i = 0; i < imageData.data.length; i += 4) {
                 const r = imageData.data[i];
                 const g = imageData.data[i + 1];
                 const b = imageData.data[i + 2];
                 const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                grayData.data[i] = grayData.data[i + 1] = grayData.data[i + 2] = gray;
-                grayData.data[i + 3] = 255; // alpha 通道
+
+                // 二值化阈值处理
+                edges[i / 4] = gray > threshold ? 255 : 0;
             }
-            return grayData;
-        }
 
-        // 边缘检测（使用 Sobel 算子）
-        function edgeDetection(imageData, width, height, roi) {
-            const edges = new Uint8Array(width * height); // 二值化结果
-            for (let y = roi.y; y < Math.min(roi.y + roi.height, height); y++) {
-                for (let x = roi.x; x < Math.min(roi.x + roi.width, width); x++) {
-                    let gx = 0;
-                    let gy = 0;
-
-                    // 应用 Sobel 算子
-                    for (let ky = -1; ky <= 1; ky++) {
-                        for (let kx = -1; kx <= 1; kx++) {
-                            const nx = x + kx;
-                            const ny = y + ky;
-
-                            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                                const pixel = ny * width + nx;
-                                const gray = imageData.data[pixel * 4];
-                                gx += sobelX[ky + 1][kx + 1] * gray;
-                                gy += sobelY[ky + 1][kx + 1] * gray;
-                            }
-                        }
-                    }
-
-                    // 计算梯度幅值
-                    const magnitude = Math.sqrt(gx * gx + gy * gy);
-
-                    // 如果梯度幅值超过阈值，则认为是边缘
-                    edges[y * width + x] = magnitude > 100 ? 255 : 0;
-                }
-            }
             return edges;
         }
 
@@ -132,10 +93,27 @@
                 for (let x = 0; x < width; x++) {
                     if (edges[y * width + x] === 255) {
                         ctx.beginPath();
-                        ctx.rect(x, y, 1, 1); // 用一个小矩形绘制轮廓点
+                        ctx.rect(x, y, 1, 1); // 绘制轮廓点
                         ctx.stroke();
                     }
                 }
+            }
+        }
+
+        // 使用 Tesseract.js 提取文字
+        async function extractText(canvas) {
+            const { createWorker } = Tesseract;
+            const worker = createWorker();
+
+            try {
+                await worker.load();
+                await worker.loadLanguage('eng');
+                await worker.initialize('eng');
+
+                const result = await worker.recognize(canvas);
+                return result.data.text;
+            } finally {
+                await worker.terminate();
             }
         }
     </script>
