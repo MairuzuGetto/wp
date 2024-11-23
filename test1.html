@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>本地图片灰度与二值化处理</title>
+    <title>图像轮廓检测</title>
     <style>
         canvas {
             display: block;
@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <h1>选择本地图片进行处理</h1>
+    <h1>选择本地图片进行轮廓检测</h1>
 
     <!-- 文件选择框 -->
     <input type="file" id="fileInput" accept="image/*">
@@ -24,6 +24,19 @@
         const fileInput = document.getElementById('fileInput');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+
+        // Sobel 算子用于边缘检测
+        const sobelX = [
+            [-1, 0, 1],
+            [-2, 0, 2],
+            [-1, 0, 1]
+        ];
+
+        const sobelY = [
+            [1, 2, 1],
+            [0, 0, 0],
+            [-1, -2, -1]
+        ];
 
         // 当用户选择文件时
         fileInput.addEventListener('change', (event) => {
@@ -45,31 +58,16 @@
 
                         // 获取图像数据
                         const imageData = ctx.getImageData(0, 0, image.width, image.height);
+                        const grayData = grayscale(imageData);
 
-                        // 灰度处理 + 二值化
-                        const threshold = 128; // 二值化阈值
-                        for (let i = 0; i < imageData.data.length; i += 4) {
-                            // 计算灰度值
-                            const r = imageData.data[i];
-                            const g = imageData.data[i + 1];
-                            const b = imageData.data[i + 2];
-                            const gray = 0.299 * r + 0.587 * g + 0.114 * b; // 灰度公式
+                        // 边缘检测
+                        const edges = edgeDetection(grayData, image.width, image.height);
 
-                            // 二值化：灰度值与阈值比较
-                            const binary = gray >= threshold ? 255 : 0;
+                        // 将边缘绘制到 canvas
+                        ctx.putImageData(edges, 0, 0);
 
-                            // 设置为黑白
-                            imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = binary;
-                        }
-
-                        // 膨胀操作 - 消除噪声
-                        dilate(imageData, image.width, image.height);
-
-                        // 将处理后的图像数据绘制到 canvas
-                        ctx.putImageData(imageData, 0, 0);
-
-                        // 在处理后进行 OCR
-                        extractText();
+                        // 提取轮廓并绘制
+                        drawContours(edges, image.width, image.height);
                     };
                 };
 
@@ -78,48 +76,68 @@
             }
         });
 
-        // 膨胀操作
-        function dilate(imageData, width, height) {
-            const tempData = new Uint8ClampedArray(imageData.data);
+        // 灰度化图像
+        function grayscale(imageData) {
+            const grayData = new ImageData(imageData.width, imageData.height);
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                const r = imageData.data[i];
+                const g = imageData.data[i + 1];
+                const b = imageData.data[i + 2];
+                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                grayData.data[i] = grayData.data[i + 1] = grayData.data[i + 2] = gray;
+                grayData.data[i + 3] = 255; // alpha 通道
+            }
+            return grayData;
+        }
 
-            // 膨胀使用3x3结构元素
+        // 边缘检测（使用 Sobel 算子）
+        function edgeDetection(imageData, width, height) {
+            const edges = new ImageData(width, height);
             for (let y = 1; y < height - 1; y++) {
                 for (let x = 1; x < width - 1; x++) {
-                    const index = (y * width + x) * 4;
+                    let gx = 0;
+                    let gy = 0;
 
-                    // 查看当前像素的周围8个邻域像素
-                    let max = 0; // 假设最开始的最大值为0
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            const ni = ((y + dy) * width + (x + dx)) * 4;
-                            max = Math.max(max, tempData[ni], tempData[ni + 1], tempData[ni + 2]); // 获取邻域的最大灰度值
+                    // 应用 Sobel 算子
+                    for (let ky = -1; ky <= 1; ky++) {
+                        for (let kx = -1; kx <= 1; kx++) {
+                            const pixel = (y + ky) * width + (x + kx);
+                            const gray = imageData.data[(pixel * 4)];
+                            gx += sobelX[ky + 1][kx + 1] * gray;
+                            gy += sobelY[ky + 1][kx + 1] * gray;
                         }
                     }
 
-                    // 设置当前像素为邻域最大值
-                    if (max > 0) {
-                        imageData.data[index] = imageData.data[index + 1] = imageData.data[index + 2] = 255;
-                    } else {
-                        imageData.data[index] = imageData.data[index + 1] = imageData.data[index + 2] = 0;
+                    // 计算梯度幅值
+                    const magnitude = Math.sqrt(gx * gx + gy * gy);
+
+                    // 如果梯度幅值超过阈值，则认为是边缘
+                    const value = magnitude > 100 ? 255 : 0;
+
+                    const index = (y * width + x) * 4;
+                    edges.data[index] = edges.data[index + 1] = edges.data[index + 2] = value;
+                    edges.data[index + 3] = 255; // alpha 通道
+                }
+            }
+            return edges;
+        }
+
+        // 绘制轮廓（简单的轮廓绘制）
+        function drawContours(imageData, width, height) {
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'red';
+
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const index = (y * width + x) * 4;
+                    const pixel = imageData.data[index];
+
+                    // 如果是边缘（像素值为255），则绘制轮廓
+                    if (pixel === 255) {
+                        ctx.strokeRect(x - 1, y - 1, 3, 3); // 绘制小方块表示轮廓
                     }
                 }
             }
-        }
-
-        // 提取文字内容（使用 Tesseract.js）
-        async function extractText() {
-            const { createWorker } = Tesseract;
-            const worker = createWorker();
-
-            await worker.load();
-            await worker.loadLanguage('eng');
-            await worker.initialize('eng');
-
-            // 从 canvas 提取文字
-            const result = await worker.recognize(canvas);
-            console.log('OCR Result:', result.data.text);
-
-            await worker.terminate();
         }
     </script>
 </body>
