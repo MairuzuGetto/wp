@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图片灰度与二值化处理</title>
+    <title>本地图片灰度与二值化处理</title>
     <style>
         canvas {
             display: block;
@@ -12,49 +12,68 @@
     </style>
 </head>
 <body>
-    <h1>原始图片</h1>
-    <img id="image" src="1020.png" alt="示例图片" width="300">
+    <h1>选择本地图片进行处理</h1>
 
-    <h1>灰度与二值化处理结果</h1>
+    <!-- 文件选择框 -->
+    <input type="file" id="fileInput" accept="image/*">
+
+    <h1>处理结果</h1>
     <canvas id="canvas"></canvas>
 
     <script>
-        const image = document.getElementById('image');
+        const fileInput = document.getElementById('fileInput');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        image.onload = () => {
-            canvas.width = image.width;
-            canvas.height = image.height;
+        // 当用户选择文件时
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                
+                // 读取文件为图片URL
+                reader.onload = () => {
+                    const image = new Image();
+                    image.src = reader.result;
+                    
+                    image.onload = () => {
+                        canvas.width = image.width;
+                        canvas.height = image.height;
 
-            // 绘制原图到 canvas
-            ctx.drawImage(image, 0, 0);
+                        // 绘制图片到 canvas
+                        ctx.drawImage(image, 0, 0);
 
-            // 获取图像数据
-            const imageData = ctx.getImageData(0, 0, image.width, image.height);
+                        // 获取图像数据
+                        const imageData = ctx.getImageData(0, 0, image.width, image.height);
 
-            // 灰度处理 + 二值化
-            const threshold = 128; // 二值化阈值
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                // 计算灰度值
-                const r = imageData.data[i];
-                const g = imageData.data[i + 1];
-                const b = imageData.data[i + 2];
-                const gray = 0.299 * r + 0.587 * g + 0.114 * b; // 灰度公式
+                        // 灰度处理 + 二值化
+                        const threshold = 128; // 二值化阈值
+                        for (let i = 0; i < imageData.data.length; i += 4) {
+                            // 计算灰度值
+                            const r = imageData.data[i];
+                            const g = imageData.data[i + 1];
+                            const b = imageData.data[i + 2];
+                            const gray = 0.299 * r + 0.587 * g + 0.114 * b; // 灰度公式
 
-                // 二值化：灰度值与阈值比较
-                const binary = gray >= threshold ? 255 : 0;
+                            // 二值化：灰度值与阈值比较
+                            const binary = gray >= threshold ? 255 : 0;
 
-                // 设置为黑白
-                imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = binary;
+                            // 设置为黑白
+                            imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = binary;
+                        }
+
+                        // 将二值化后的图像数据绘制到 canvas
+                        ctx.putImageData(imageData, 0, 0);
+
+                        // 在处理后进行 OCR
+                        extractText();
+                    };
+                };
+
+                // 读取文件内容
+                reader.readAsDataURL(file);
             }
-
-            // 将二值化后的图像数据绘制到 canvas
-            ctx.putImageData(imageData, 0, 0);
-
-            // 在处理后进行 OCR
-            extractText();
-        };
+        });
 
         // 提取文字内容（使用 Tesseract.js）
         async function extractText() {
