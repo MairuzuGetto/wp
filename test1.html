@@ -23,7 +23,8 @@
 
     <!-- 文件选择框 -->
     <input type="file" id="fileInput" accept="image/*">
-    
+    <p>点击并拖动鼠标选择感兴趣的区域 (ROI)。</p>
+
     <h1>处理结果</h1>
     <canvas id="canvas"></canvas>
     <h2>识别出的文字</h2>
@@ -36,8 +37,10 @@
         const ctx = canvas.getContext('2d');
         const textResult = document.getElementById('textResult');
 
-        // 固定的感兴趣区域 (ROI)
-        const roi = { x: 50, y: 50, width: 200, height: 150 };
+        let isDrawing = false;
+        let startX = 0;
+        let startY = 0;
+        let roi = { x: 0, y: 0, width: 0, height: 0 }; // 保存用户选择的感兴趣区域 (ROI)
 
         // 当用户选择文件时
         fileInput.addEventListener('change', (event) => {
@@ -50,17 +53,17 @@
                     const image = new Image();
                     image.src = reader.result;
 
-                    image.onload = async () => {
+                    image.onload = () => {
                         canvas.width = image.width;
                         canvas.height = image.height;
 
                         // 绘制图片到 canvas
                         ctx.drawImage(image, 0, 0);
 
-                        // 直接从固定 ROI 提取文字
-                        textResult.textContent = '正在识别文字，请稍候...';
-                        const recognizedText = await extractTextFromROI(roi);
-                        textResult.textContent = `识别结果：\n${recognizedText}`;
+                        // 允许用户选择区域
+                        canvas.addEventListener('mousedown', startSelection);
+                        canvas.addEventListener('mousemove', drawSelection);
+                        canvas.addEventListener('mouseup', finishSelection);
                     };
                 };
 
@@ -68,6 +71,54 @@
                 reader.readAsDataURL(file);
             }
         });
+
+        // 开始选择区域
+        function startSelection(event) {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            startX = event.clientX - rect.left;
+            startY = event.clientY - rect.top;
+        }
+
+        // 绘制选择的矩形
+        function drawSelection(event) {
+            if (!isDrawing) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            const width = mouseX - startX;
+            const height = mouseY - startY;
+
+            // 绘制临时矩形
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(fileInput.files[0], 0, 0, canvas.width, canvas.height); // 重绘图片
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(startX, startY, width, height);
+        }
+
+        // 完成选择并保存 ROI
+        function finishSelection(event) {
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            const rect = canvas.getBoundingClientRect();
+            const endX = event.clientX - rect.left;
+            const endY = event.clientY - rect.top;
+
+            roi.x = Math.min(startX, endX);
+            roi.y = Math.min(startY, endY);
+            roi.width = Math.abs(endX - startX);
+            roi.height = Math.abs(endY - startY);
+
+            // 提取文字识别
+            textResult.textContent = '正在识别文字，请稍候...';
+            extractTextFromROI(roi).then((recognizedText) => {
+                textResult.textContent = `识别结果：\n${recognizedText}`;
+            });
+        }
 
         // 使用 Tesseract.js 提取文字
         async function extractTextFromROI({ x, y, width, height }) {
