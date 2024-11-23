@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自适应二值化处理</title>
+    <title>本地图片灰度与二值化处理</title>
     <style>
         canvas {
             display: block;
@@ -46,8 +46,21 @@
                         // 获取图像数据
                         const imageData = ctx.getImageData(0, 0, image.width, image.height);
 
-                        // 自适应二值化处理
-                        adaptiveThreshold(imageData);
+                        // 灰度处理 + 二值化
+                        const threshold = 128; // 二值化阈值
+                        for (let i = 0; i < imageData.data.length; i += 4) {
+                            // 计算灰度值
+                            const r = imageData.data[i];
+                            const g = imageData.data[i + 1];
+                            const b = imageData.data[i + 2];
+                            const gray = 0.299 * r + 0.587 * g + 0.114 * b; // 灰度公式
+
+                            // 二值化：灰度值与阈值比较
+                            const binary = gray >= threshold ? 255 : 0;
+
+                            // 设置为黑白
+                            imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = binary;
+                        }
 
                         // 将二值化后的图像数据绘制到 canvas
                         ctx.putImageData(imageData, 0, 0);
@@ -61,39 +74,6 @@
                 reader.readAsDataURL(file);
             }
         });
-
-        // 自适应二值化处理
-        function adaptiveThreshold(imageData) {
-            const width = imageData.width;
-            const height = imageData.height;
-
-            // 遍历每个像素进行自适应二值化
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    const index = (y * width + x) * 4;
-                    
-                    // 获取周围9个像素的灰度值
-                    let sum = 0;
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            const ni = (y + dy) * width + (x + dx);
-                            const gray = (0.299 * imageData.data[ni * 4] + 0.587 * imageData.data[ni * 4 + 1] + 0.114 * imageData.data[ni * 4 + 2]);
-                            sum += gray;
-                        }
-                    }
-
-                    // 计算周围区域的平均灰度值
-                    const avg = sum / 9;
-                    
-                    // 使用计算的局部阈值进行二值化
-                    const gray = 0.299 * imageData.data[index] + 0.587 * imageData.data[index + 1] + 0.114 * imageData.data[index + 2];
-                    const binary = gray >= avg ? 255 : 0;
-
-                    // 设置像素值为黑白
-                    imageData.data[index] = imageData.data[index + 1] = imageData.data[index + 2] = binary;
-                }
-            }
-        }
 
         // 提取文字内容（使用 Tesseract.js）
         async function extractText() {
