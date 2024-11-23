@@ -8,6 +8,7 @@
         canvas {
             display: block;
             margin-top: 20px;
+            border: 1px solid black;
         }
         pre {
             background-color: #f4f4f4;
@@ -18,10 +19,11 @@
     </style>
 </head>
 <body>
-    <h1>选择本地图片进行处理</h1>
+    <h1>选择本地图片并设置轮廓区域</h1>
 
     <!-- 文件选择框 -->
     <input type="file" id="fileInput" accept="image/*">
+    <p>点击并拖动鼠标选择感兴趣的区域 (ROI)。</p>
 
     <h1>处理结果</h1>
     <canvas id="canvas"></canvas>
@@ -35,6 +37,11 @@
         const ctx = canvas.getContext('2d');
         const textResult = document.getElementById('textResult');
 
+        let isDrawing = false;
+        let startX = 0;
+        let startY = 0;
+        let roi = { x: 0, y: 0, width: 0, height: 0 }; // 保存用户选择的感兴趣区域 (ROI)
+
         // 当用户选择文件时
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
@@ -46,23 +53,17 @@
                     const image = new Image();
                     image.src = reader.result;
 
-                    image.onload = async () => {
+                    image.onload = () => {
                         canvas.width = image.width;
                         canvas.height = image.height;
 
                         // 绘制图片到 canvas
                         ctx.drawImage(image, 0, 0);
 
-                        // 边缘检测
-                        const edges = edgeDetection(image.width, image.height);
-
-                        // 绘制轮廓到原始图像
-                        drawContoursOnImage(edges, image.width, image.height);
-
-                        // OCR 文字识别
-                        textResult.textContent = '正在识别文字，请稍候...';
-                        const recognizedText = await extractText(canvas);
-                        textResult.textContent = `识别结果：\n${recognizedText}`;
+                        // 允许用户选择区域
+                        canvas.addEventListener('mousedown', startSelection);
+                        canvas.addEventListener('mousemove', drawSelection);
+                        canvas.addEventListener('mouseup', finishSelection);
                     };
                 };
 
@@ -71,50 +72,73 @@
             }
         });
 
-        // 简单二值化处理（可作为边缘检测）
-        function edgeDetection(width, height) {
-            const edges = new Uint8Array(width * height);
-            const imageData = ctx.getImageData(0, 0, width, height);
-            const threshold = 128;
-
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                const r = imageData.data[i];
-                const g = imageData.data[i + 1];
-                const b = imageData.data[i + 2];
-                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                edges[i / 4] = gray > threshold ? 255 : 0;
-            }
-
-            return edges;
+        // 开始选择区域
+        function startSelection(event) {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            startX = event.clientX - rect.left;
+            startY = event.clientY - rect.top;
         }
 
-        // 绘制轮廓到原始图像
-        function drawContoursOnImage(edges, width, height) {
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 1;
+        // 绘制选择的矩形
+        function drawSelection(event) {
+            if (!isDrawing) return;
 
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    if (edges[y * width + x] === 255) {
-                        ctx.beginPath();
-                        ctx.rect(x, y, 1, 1); // 绘制轮廓点
-                        ctx.stroke();
-                    }
-                }
-            }
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            const width = mouseX - startX;
+            const height = mouseY - startY;
+
+            // 绘制临时矩形
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(fileInput.files[0], 0, 0, canvas.width, canvas.height); // 重绘图片
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(startX, startY, width, height);
+        }
+
+        // 完成选择并保存 ROI
+        function finishSelection(event) {
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            const rect = canvas.getBoundingClientRect();
+            const endX = event.clientX - rect.left;
+            const endY = event.clientY - rect.top;
+
+            roi.x = Math.min(startX, endX);
+            roi.y = Math.min(startY, endY);
+            roi.width = Math.abs(endX - startX);
+            roi.height = Math.abs(endY - startY);
+
+            // 提取文字识别
+            textResult.textContent = '正在识别文字，请稍候...';
+            extractTextFromROI(roi).then((recognizedText) => {
+                textResult.textContent = `识别结果：\n${recognizedText}`;
+            });
         }
 
         // 使用 Tesseract.js 提取文字
-        async function extractText(canvas) {
+        async function extractTextFromROI({ x, y, width, height }) {
+            const imageData = ctx.getImageData(x, y, width, height);
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.putImageData(imageData, 0, 0);
+
             const { createWorker } = Tesseract;
             const worker = createWorker();
 
             try {
                 await worker.load();
-                await worker.loadLanguage('chi_tra'); // 可更改为 'chi_sim' 支持中文
+                await worker.loadLanguage('eng'); // 可改为 'chi_sim' 支持中文
                 await worker.initialize('eng');
 
-                const result = await worker.recognize(canvas);
+                const result = await worker.recognize(tempCanvas);
                 return result.data.text;
             } finally {
                 await worker.terminate();
