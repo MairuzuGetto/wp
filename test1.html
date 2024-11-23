@@ -39,7 +39,7 @@
         ];
 
         // 感兴趣区域 (ROI) 设置
-        const roi = { x: 1050, y: 2250, width: 600, height: 600 };
+        const roi = { x: 0, y: 0, width: Infinity, height: Infinity }; // 默认为整幅图像
 
         // 当用户选择文件时
         fileInput.addEventListener('change', (event) => {
@@ -63,14 +63,11 @@
                         const imageData = ctx.getImageData(0, 0, image.width, image.height);
                         const grayData = grayscale(imageData);
 
-                        // 边缘检测 - 仅在 ROI 区域内进行
+                        // 边缘检测
                         const edges = edgeDetection(grayData, image.width, image.height, roi);
 
-                        // 将边缘绘制到 canvas
-                        ctx.putImageData(edges, 0, 0);
-
-                        // 提取轮廓并绘制
-                        drawContours(edges, image.width, image.height, roi);
+                        // 绘制轮廓到原始图像
+                        drawContoursOnImage(edges, image.width, image.height);
                     };
                 };
 
@@ -93,21 +90,26 @@
             return grayData;
         }
 
-        // 边缘检测（使用 Sobel 算子）仅在 ROI 区域内
+        // 边缘检测（使用 Sobel 算子）
         function edgeDetection(imageData, width, height, roi) {
-            const edges = new ImageData(width, height);
-            for (let y = roi.y; y < roi.y + roi.height; y++) {
-                for (let x = roi.x; x < roi.x + roi.width; x++) {
+            const edges = new Uint8Array(width * height); // 二值化结果
+            for (let y = roi.y; y < Math.min(roi.y + roi.height, height); y++) {
+                for (let x = roi.x; x < Math.min(roi.x + roi.width, width); x++) {
                     let gx = 0;
                     let gy = 0;
 
                     // 应用 Sobel 算子
                     for (let ky = -1; ky <= 1; ky++) {
                         for (let kx = -1; kx <= 1; kx++) {
-                            const pixel = (y + ky) * width + (x + kx);
-                            const gray = imageData.data[(pixel * 4)];
-                            gx += sobelX[ky + 1][kx + 1] * gray;
-                            gy += sobelY[ky + 1][kx + 1] * gray;
+                            const nx = x + kx;
+                            const ny = y + ky;
+
+                            if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                const pixel = ny * width + nx;
+                                const gray = imageData.data[pixel * 4];
+                                gx += sobelX[ky + 1][kx + 1] * gray;
+                                gy += sobelY[ky + 1][kx + 1] * gray;
+                            }
                         }
                     }
 
@@ -115,29 +117,23 @@
                     const magnitude = Math.sqrt(gx * gx + gy * gy);
 
                     // 如果梯度幅值超过阈值，则认为是边缘
-                    const value = magnitude > 100 ? 255 : 0;
-
-                    const index = (y * width + x) * 4;
-                    edges.data[index] = edges.data[index + 1] = edges.data[index + 2] = value;
-                    edges.data[index + 3] = 255; // alpha 通道
+                    edges[y * width + x] = magnitude > 100 ? 255 : 0;
                 }
             }
             return edges;
         }
 
-        // 绘制轮廓（简单的轮廓绘制）仅在 ROI 区域内
-        function drawContours(imageData, width, height, roi) {
-            ctx.lineWidth = 2;
+        // 在原始图像上绘制轮廓
+        function drawContoursOnImage(edges, width, height) {
             ctx.strokeStyle = 'red';
+            ctx.lineWidth = 1;
 
-            for (let y = roi.y; y < roi.y + roi.height; y++) {
-                for (let x = roi.x; x < roi.x + roi.width; x++) {
-                    const index = (y * width + x) * 4;
-                    const pixel = imageData.data[index];
-
-                    // 如果是边缘（像素值为255），则绘制轮廓
-                    if (pixel === 255) {
-                        ctx.strokeRect(x - 1, y - 1, 3, 3); // 绘制小方块表示轮廓
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    if (edges[y * width + x] === 255) {
+                        ctx.beginPath();
+                        ctx.rect(x, y, 1, 1); // 用一个小矩形绘制轮廓点
+                        ctx.stroke();
                     }
                 }
             }
