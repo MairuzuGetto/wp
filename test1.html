@@ -35,6 +35,9 @@
         const ctx = canvas.getContext('2d');
         const textResult = document.getElementById('textResult');
 
+        // 定义 ROI（这里是示例坐标）
+        const roi = { x: 50, y: 50, width: 200, height: 150 };
+
         // 当用户选择文件时
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
@@ -53,15 +56,25 @@
                         // 绘制图片到 canvas
                         ctx.drawImage(image, 0, 0);
 
-                        // 边缘检测
-                        const edges = edgeDetection(image.width, image.height);
+                        // 绘制 ROI 区域（可视化）
+                        ctx.strokeStyle = 'red';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(roi.x, roi.y, roi.width, roi.height);
 
-                        // 绘制轮廓到原始图像
-                        drawContoursOnImage(edges, image.width, image.height);
+                        // 从 ROI 区域提取图像
+                        const roiCanvas = document.createElement('canvas');
+                        roiCanvas.width = roi.width;
+                        roiCanvas.height = roi.height;
+                        const roiCtx = roiCanvas.getContext('2d');
+                        roiCtx.drawImage(
+                            canvas,
+                            roi.x, roi.y, roi.width, roi.height, // 裁剪区域
+                            0, 0, roi.width, roi.height // 目标绘制区域
+                        );
 
                         // OCR 文字识别
                         textResult.textContent = '正在识别文字，请稍候...';
-                        const recognizedText = await extractText(canvas);
+                        const recognizedText = await extractText(roiCanvas);
                         textResult.textContent = `识别结果：\n${recognizedText}`;
                     };
                 };
@@ -70,39 +83,6 @@
                 reader.readAsDataURL(file);
             }
         });
-
-        // 简单二值化处理（可作为边缘检测）
-        function edgeDetection(width, height) {
-            const edges = new Uint8Array(width * height);
-            const imageData = ctx.getImageData(0, 0, width, height);
-            const threshold = 128;
-
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                const r = imageData.data[i];
-                const g = imageData.data[i + 1];
-                const b = imageData.data[i + 2];
-                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                edges[i / 4] = gray > threshold ? 255 : 0;
-            }
-
-            return edges;
-        }
-
-        // 绘制轮廓到原始图像
-        function drawContoursOnImage(edges, width, height) {
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 1;
-
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    if (edges[y * width + x] === 255) {
-                        ctx.beginPath();
-                        ctx.rect(x, y, 1, 1); // 绘制轮廓点
-                        ctx.stroke();
-                    }
-                }
-            }
-        }
 
         // 使用 Tesseract.js 提取文字
         async function extractText(canvas) {
