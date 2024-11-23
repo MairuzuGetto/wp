@@ -28,7 +28,7 @@
     <h2>识别出的文字</h2>
     <pre id="textResult">等待识别...</pre>
 
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
     <script>
         const fileInput = document.getElementById('fileInput');
         const canvas = document.getElementById('canvas');
@@ -36,7 +36,7 @@
         const textResult = document.getElementById('textResult');
 
         // 定义 ROI（这里是示例坐标）
-        const roi = { x: 50, y: 50, width: 200, height: 150 };
+        const roi = { x: 1150, y: 2050, width: 600, height: 600 };
 
         // 当用户选择文件时
         fileInput.addEventListener('change', (event) => {
