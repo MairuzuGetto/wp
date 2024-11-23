@@ -25,12 +25,18 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
+        // 灰度化图片处理
         image.onload = () => {
             canvas.width = image.width;
             canvas.height = image.height;
+
+            // 绘制原图到 canvas
             ctx.drawImage(image, 0, 0);
+
+            // 获取图像数据
             const imageData = ctx.getImageData(0, 0, image.width, image.height);
 
+            // 转换为灰度
             for (let i = 0; i < imageData.data.length; i += 4) {
                 const r = imageData.data[i];
                 const g = imageData.data[i + 1];
@@ -39,26 +45,28 @@
                 imageData.data[i] = imageData.data[i + 1] = imageData.data[i + 2] = gray;
             }
 
+            // 将灰度图像数据重新绘制到 canvas
             ctx.putImageData(imageData, 0, 0);
+
+            // 在灰度图绘制后提取文字
+            extractText();
         };
 
-        // 提取文字内容（使用Tesseract.js）
+        // 提取文字内容（使用 Tesseract.js）
         async function extractText() {
             const { createWorker } = Tesseract;
             const worker = createWorker();
+
             await worker.load();
             await worker.loadLanguage('eng');
             await worker.initialize('eng');
-            
+
+            // 从 canvas 提取文字
             const result = await worker.recognize(canvas);
             console.log('OCR Result:', result.data.text);
+
             await worker.terminate();
         }
-
-        // 延迟处理，确保图片加载完成
-        image.onload = () => {
-            extractText();
-        };
     </script>
 </body>
 </html>
