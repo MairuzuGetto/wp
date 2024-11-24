@@ -3,17 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>动态识别“新单数”并展示灰度与二值化</title>
+    <title>灰度与二值化展示</title>
     <style>
         .canvas-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
         }
         canvas {
+            display: block;
+            margin: 10px auto;
             border: 1px solid #ddd;
-            margin: 10px 0;
         }
         pre {
             background-color: #f4f4f4;
@@ -26,21 +24,16 @@
             margin: 0;
             padding: 10px;
         }
-        .result {
-            margin-bottom: 20px;
-        }
     </style>
 </head>
 <body>
-    <h1>动态识别“新单数”并展示灰度与二值化</h1>
+    <h1>灰度与二值化图像预处理</h1>
 
     <!-- 文件选择框 -->
     <input type="file" id="fileInput" accept="image/*" multiple>
-
-    <h2>识别结果</h2>
+    <h2>处理结果</h2>
     <div id="results"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
     <script>
         const fileInput = document.getElementById('fileInput');
         const resultsContainer = document.getElementById('results');
@@ -55,50 +48,46 @@
                     const image = new Image();
                     image.src = reader.result;
 
-                    image.onload = async () => {
+                    image.onload = () => {
                         const resultDiv = document.createElement('div');
-                        resultDiv.classList.add('result');
+                        resultDiv.classList.add('canvas-container');
                         resultsContainer.appendChild(resultDiv);
 
-                        const canvasContainer = document.createElement('div');
-                        canvasContainer.classList.add('canvas-container');
-                        resultDiv.appendChild(canvasContainer);
-
-                        // 原始图像
+                        // 创建原始、灰度、二值化 canvas
                         const originalCanvas = createCanvas(image.width, image.height);
+                        const grayCanvas = createCanvas(image.width, image.height);
+                        const binaryCanvas = createCanvas(image.width, image.height);
+
+                        // 绘制原始图片
                         const originalCtx = originalCanvas.getContext('2d');
                         originalCtx.drawImage(image, 0, 0);
-                        canvasContainer.appendChild(originalCanvas);
-                        canvasContainer.insertAdjacentHTML('beforeend', '<strong>原始图像</strong>');
+                        resultDiv.appendChild(originalCanvas);
+                        resultDiv.insertAdjacentHTML('beforeend', '<strong>原始图像</strong>');
 
                         // 灰度化
-                        const grayCanvas = createCanvas(image.width, image.height);
                         const grayCtx = grayCanvas.getContext('2d');
                         grayCtx.drawImage(image, 0, 0);
                         preprocessImage(grayCanvas, 'gray');
-                        canvasContainer.appendChild(grayCanvas);
-                        canvasContainer.insertAdjacentHTML('beforeend', '<strong>灰度图像</strong>');
+                        resultDiv.appendChild(grayCanvas);
+                        resultDiv.insertAdjacentHTML('beforeend', '<strong>灰度化图像</strong>');
 
                         // 二值化
-                        const binaryCanvas = createCanvas(image.width, image.height);
                         const binaryCtx = binaryCanvas.getContext('2d');
                         binaryCtx.drawImage(image, 0, 0);
                         preprocessImage(binaryCanvas, 'binary');
-                        canvasContainer.appendChild(binaryCanvas);
-                        canvasContainer.insertAdjacentHTML('beforeend', '<strong>二值化图像</strong>');
+                        resultDiv.appendChild(binaryCanvas);
+                        resultDiv.insertAdjacentHTML('beforeend', '<strong>二值化图像</strong>');
 
                         // OCR 识别
-                        resultDiv.insertAdjacentHTML('beforeend', '<strong>正在识别文字，请稍候...</strong>');
-                        const recognizedText = await extractText(binaryCanvas);
+                        const resultText = document.createElement('pre');
+                        resultText.textContent = '正在识别文字...';
+                        resultDiv.appendChild(resultText);
 
-                        // 提取“新单数”相关内容
-                        const extractedData = findNewNumber(recognizedText);
-
-                        resultDiv.innerHTML = `
-                            <strong>文件：</strong>${file.name}<br>
-                            <strong>完整识别内容：</strong><pre>${recognizedText}</pre>
-                            <strong>提取到的“新单数”信息：</strong>${extractedData || '未找到相关信息'}
-                        `;
+                        extractText(binaryCanvas).then(recognizedText => {
+                            resultText.textContent = `识别结果:\n${recognizedText}`;
+                        }).catch(err => {
+                            resultText.textContent = `OCR 失败: ${err.message}`;
+                        });
                     };
                 };
                 reader.readAsDataURL(file);
@@ -118,4 +107,38 @@
             const data = imageData.data;
 
             for (let i = 0; i < data.length; i += 4) {
-                
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+                if (mode === 'gray') {
+                    // 灰度化
+                    data[i] = data[i + 1] = data[i + 2] = gray;
+                } else if (mode === 'binary') {
+                    // 二值化
+                    const binary = gray > 128 ? 255 : 0; // 阈值为 128
+                    data[i] = data[i + 1] = data[i + 2] = binary;
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        async function extractText(canvas) {
+            const { createWorker } = Tesseract;
+            const worker = createWorker();
+
+            try {
+                await worker.load();
+                await worker.loadLanguage('chi_sim'); // 中文识别
+                await worker.initialize('chi_sim');
+                const result = await worker.recognize(canvas);
+                return result.data.text.trim();
+            } finally {
+                await worker.terminate();
+            }
+        }
+    </script>
+</body>
+</html>
