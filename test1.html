@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>提取特定文字数字</title>
+    <title>侦测白色区域</title>
     <style>
         canvas {
             border: 1px solid #ddd;
             margin-top: 10px;
-            display: block;
         }
         pre {
             background-color: #f4f4f4;
@@ -17,10 +16,10 @@
     </style>
 </head>
 <body>
-    <h1>上传图片并提取目标数字</h1>
+    <h1>上传图片并侦测白色区域</h1>
     <input type="file" id="fileInput" accept="image/*">
     <canvas id="canvas"></canvas>
-    <pre id="result">识别结果会显示在这里...</pre>
+    <pre id="result">检测结果会显示在这里...</pre>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
     <script>
@@ -41,57 +40,96 @@
                         canvas.height = img.height;
                         ctx.drawImage(img, 0, 0);
 
-                        // 调用识别方法
-                        recognizeText(canvas);
+                        // 开始侦测白色区域和文字
+                        detectWhiteRegion(ctx, canvas, img);
                     };
                 };
                 reader.readAsDataURL(file);
             }
         });
 
-        async function recognizeText(canvas) {
-            const { createWorker } = Tesseract;
-            const worker = createWorker({
-                logger: (m) => console.log(m), // 显示日志
-            });
+        async function detectWhiteRegion(ctx, canvas, img) {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data;
+            const whiteRegions = [];
 
-            try {
-                await worker.load();
-                await worker.loadLanguage('chi_sim'); // 加载中文
-                await worker.initialize('chi_sim');
-                const { data } = await worker.recognize(canvas);
+            // 遍历像素检测白色区域
+            for (let y = 0; y < canvas.height; y++) {
+                for (let x = 0; x < canvas.width; x++) {
+                    const index = (y * canvas.width + x) * 4;
+                    const r = pixels[index];
+                    const g = pixels[index + 1];
+                    const b = pixels[index + 2];
+                    const alpha = pixels[index + 3];
 
-                // 提取特定文字后面的数字
-                const text = data.text;
-                console.log("完整识别文本:", text);
+                    // 判断像素是否接近白色 (可以调整阈值)
+                    if (r > 200 && g > 200 && b > 200 && alpha > 200) {
+                        whiteRegions.push({ x, y });
+                    }
+                }
+            }
 
-                const results = extractTargetNumbers(text);
-                result.textContent = `提取结果：\n${JSON.stringify(results, null, 2)}`;
-            } finally {
-                await worker.terminate();
+            // 如果检测到白色像素，标记区域
+            if (whiteRegions.length > 0) {
+                const bounds = getBounds(whiteRegions);
+                highlightRegion(ctx, bounds);
+
+                // 使用 OCR 检测白色区域内的文字
+                const detectedText = await recognizeText(canvas, bounds);
+                result.textContent = `检测到的文字：${detectedText}`;
+            } else {
+                result.textContent = '未检测到白色区域';
             }
         }
 
-        function extractTargetNumbers(text) {
-            const lines = text.split('\n'); // 按行分割识别结果
-
-            // 定义目标字段和正则表达式
-            const targets = {
-                "新單數": /新單數\s*:\s*(\d+)/,
-                "上傳市府點數": /上傳市府點數\s*:\s*(\d+)/,
-                "勞務費點數": /勞務費點數\s*:\s*(\d+)/,
+        function getBounds(points) {
+            // 获取所有点的边界
+            const xs = points.map((p) => p.x);
+            const ys = points.map((p) => p.y);
+            return {
+                x: Math.min(...xs),
+                y: Math.min(...ys),
+                width: Math.max(...xs) - Math.min(...xs),
+                height: Math.max(...ys) - Math.min(...ys),
             };
+        }
 
-            const results = {};
-            for (const [key, regex] of Object.entries(targets)) {
-                const match = text.match(regex);
-                if (match) {
-                    results[key] = match[1]; // 提取数字部分
-                } else {
-                    results[key] = "未找到";
-                }
+        function highlightRegion(ctx, bounds) {
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        }
+
+        async function recognizeText(canvas, bounds) {
+            const { createWorker } = Tesseract;
+            const worker = createWorker();
+            const croppedCanvas = document.createElement('canvas');
+            const croppedCtx = croppedCanvas.getContext('2d');
+
+            // 裁剪白色区域
+            croppedCanvas.width = bounds.width;
+            croppedCanvas.height = bounds.height;
+            croppedCtx.drawImage(
+                canvas,
+                bounds.x,
+                bounds.y,
+                bounds.width,
+                bounds.height,
+                0,
+                0,
+                bounds.width,
+                bounds.height
+            );
+
+            try {
+                await worker.load();
+                await worker.loadLanguage('chi_sim');
+                await worker.initialize('chi_sim');
+                const { data } = await worker.recognize(croppedCanvas);
+                return data.text;
+            } finally {
+                await worker.terminate();
             }
-            return results;
         }
     </script>
 </body>
