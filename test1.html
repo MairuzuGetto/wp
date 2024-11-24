@@ -72,19 +72,27 @@
                     resultDiv.appendChild(originalCanvas);
                     resultDiv.insertAdjacentHTML('beforeend', '<strong>原始图像</strong>');
 
+                    // 增强对比度
+                    const enhancedCanvas = createCanvas(scaledWidth, scaledHeight);
+                    const enhancedCtx = enhancedCanvas.getContext('2d');
+                    enhancedCtx.drawImage(originalCanvas, 0, 0);
+                    enhanceContrast(enhancedCanvas);
+                    resultDiv.appendChild(enhancedCanvas);
+                    resultDiv.insertAdjacentHTML('beforeend', '<strong>增强对比度图像</strong>');
+
                     // 灰度化处理
                     const grayCtx = grayCanvas.getContext('2d');
-                    grayCtx.drawImage(originalCanvas, 0, 0);
+                    grayCtx.drawImage(enhancedCanvas, 0, 0);
                     preprocessImage(grayCanvas, 'gray');
                     resultDiv.appendChild(grayCanvas);
                     resultDiv.insertAdjacentHTML('beforeend', '<strong>灰度化图像</strong>');
 
-                    // 二值化处理
+                    // 自适应阈值二值化
                     const binaryCtx = binaryCanvas.getContext('2d');
                     binaryCtx.drawImage(grayCanvas, 0, 0);
-                    preprocessImage(binaryCanvas, 'binary');
+                    preprocessImage(binaryCanvas, 'adaptiveBinary');
                     resultDiv.appendChild(binaryCanvas);
-                    resultDiv.insertAdjacentHTML('beforeend', '<strong>二值化图像</strong>');
+                    resultDiv.insertAdjacentHTML('beforeend', '<strong>自适应二值化图像</strong>');
 
                     // 膨胀与降噪处理
                     const denoisedCtx = denoisedCanvas.getContext('2d');
@@ -123,68 +131,59 @@
                     // 二值化
                     const binary = gray > 128 ? 255 : 0; // 阈值调整为 128
                     data[i] = data[i + 1] = data[i + 2] = binary;
+                } else if (mode === 'adaptiveBinary') {
+                    // 自适应二值化
+                    const binary = adaptiveThreshold(gray, canvas, i);
+                    data[i] = data[i + 1] = data[i + 2] = binary;
                 }
             }
 
             ctx.putImageData(imageData, 0, 0);
+        }
+
+        function enhanceContrast(canvas) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            const contrastFactor = 2.0; // 对比度增强因子，调整为适合的值
+
+            for (let i = 0; i < data.length; i += 4) {
+                for (let j = 0; j < 3; j++) {
+                    let pixel = data[i + j];
+                    pixel = ((pixel / 255.0 - 0.5) * contrastFactor + 0.5) * 255.0;
+                    data[i + j] = Math.min(255, Math.max(0, pixel)); // 保证像素值在 0-255 范围内
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function adaptiveThreshold(gray, canvas, index) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const width = canvas.width;
+            const height = canvas.height;
+            const blockSize = 15; // 每个局部区域的尺寸，可以调整
+
+            // 获取当前像素周围的平均灰度值
+            let sum = 0, count = 0;
+            for (let ky = -Math.floor(blockSize / 2); ky <= Math.floor(blockSize / 2); ky++) {
+                for (let kx = -Math.floor(blockSize / 2); kx <= Math.floor(blockSize / 2); kx++) {
+                    const nx = (index / 4 + kx) % width;
+                    const ny = Math.floor(index / (4 * width)) + ky;
+                    if (nx >= 0 && ny >= 0 && nx < width && ny < height) {
+                        const pixelIndex = (ny * width + nx) * 4;
+                        const neighborGray = 0.299 * data[pixelIndex] + 0.587 * data[pixelIndex + 1] + 0.114 * data[pixelIndex + 2];
+                        sum += neighborGray;
+                        count++;
+                    }
+                }
+            }
+            const blockThreshold = sum / count;
+            return gray > blockThreshold ? 255 : 0;
         }
 
         function applyMorphology(canvas, operation) {
-        const ctx = canvas.getContext('2d');
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-
-        const width = canvas.width;
-        const height = canvas.height;
-
-        const kernelSize = 3; // 核大小（3x3）
-        const halfKernel = Math.floor(kernelSize / 2);
-
-        // 创建副本数组，避免直接修改原图像数据
-        const copyData = new Uint8ClampedArray(data);
-
-        const process = (isDilate) => {
-            for (let y = halfKernel; y < height - halfKernel; y++) {
-                for (let x = halfKernel; x < width - halfKernel; x++) {
-                    const index = (y * width + x) * 4;
-                    let shouldApply = isDilate ? false : true;
-
-                    // 检查 3x3 内核
-                    for (let ky = -halfKernel; ky <= halfKernel; ky++) {
-                        for (let kx = -halfKernel; kx <= halfKernel; kx++) {
-                            const neighborIndex = ((y + ky) * width + (x + kx)) * 4;
-                            const neighborValue = copyData[neighborIndex];
-                            if (isDilate) {
-                                if (neighborValue === 255) shouldApply = true;
-                            } else {
-                                if (neighborValue === 0) shouldApply = false;
-                            }
-                        }
-                    }
-
-                    // 设置膨胀或腐蚀结果
-                    data[index] = data[index + 1] = data[index + 2] = shouldApply ? 255 : 0;
-                }
-            }
-        };
-
-        if (operation === 'open') {
-            // 开操作：先腐蚀后膨胀
-            process(false); // 腐蚀
-            ctx.putImageData(imageData, 0, 0);
-            process(true); // 膨胀
-        } else if (operation === 'close') {
-            // 闭操作：先膨胀后腐蚀
-            process(true); // 膨胀
-            ctx.putImageData(imageData, 0, 0);
-            process(false); // 腐蚀
-        } else {
-            // 单独的膨胀或腐蚀
-            process(operation === 'dilate');
-        }
-
-        ctx.putImageData(imageData, 0, 0);
-    }
-    </script>
-</body>
-</html>
+            const ctx = canvas.getContext
