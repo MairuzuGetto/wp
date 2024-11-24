@@ -50,6 +50,7 @@
                 image.src = reader.result;
 
                 image.onload = () => {
+                    console.log("Image loaded successfully");  // 调试日志
                     const resultDiv = document.createElement('div');
                     resultDiv.classList.add('canvas-container');
                     resultsContainer.innerHTML = ''; // 清空之前的结果
@@ -100,6 +101,10 @@
                     applyMorphology(denoisedCanvas, 'dilate'); // 膨胀操作
                     resultDiv.appendChild(denoisedCanvas);
                     resultDiv.insertAdjacentHTML('beforeend', '<strong>膨胀与降噪图像</strong>');
+                };
+
+                image.onerror = () => {
+                    console.error("Error loading image");  // 图像加载错误
                 };
             };
 
@@ -169,20 +174,20 @@
 
             // 获取当前像素周围的平均灰度值
             let sum = 0, count = 0;
-            for (let ky = -Math.floor(blockSize / 2); ky <= Math.floor(blockSize / 2); ky++) {
-                for (let kx = -Math.floor(blockSize / 2); kx <= Math.floor(blockSize / 2); kx++) {
-                    const nx = (index / 4 + kx) % width;
-                    const ny = Math.floor(index / (4 * width)) + ky;
-                    if (nx >= 0 && ny >= 0 && nx < width && ny < height) {
-                        const pixelIndex = (ny * width + nx) * 4;
-                        const neighborGray = 0.299 * data[pixelIndex] + 0.587 * data[pixelIndex + 1] + 0.114 * data[pixelIndex + 2];
-                        sum += neighborGray;
+            for (let ky = -Math.floor(blockSize / 2); ky < Math.floor(blockSize / 2); ky++) {
+                for (let kx = -Math.floor(blockSize / 2); kx < Math.floor(blockSize / 2); kx++) {
+                    const nx = (index / 4) % width + kx;
+                    const ny = Math.floor(index / (width * 4)) + ky;
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        const neighborIndex = (ny * width + nx) * 4;
+                        sum += (data[neighborIndex] + data[neighborIndex + 1] + data[neighborIndex + 2]) / 3;
                         count++;
                     }
                 }
             }
-            const blockThreshold = sum / count;
-            return gray > blockThreshold ? 255 : 0;
+
+            const avg = sum / count;
+            return gray > avg ? 255 : 0;
         }
 
         function applyMorphology(canvas, operation) {
