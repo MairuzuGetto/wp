@@ -3,154 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图像处理：灰度、二值化与膨胀处理</title>
+    <title>侦测新單數及数字矩形</title>
     <style>
-        .canvas-container {
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        canvas {
-            display: block;
-            margin: 10px auto;
-            border: 1px solid #ddd;
-            max-width: 90%;
-            height: auto;
-        }
-        pre {
-            background-color: #f4f4f4;
-            padding: 10px;
-            border: 1px solid #ddd;
-            white-space: pre-wrap;
-        }
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 10px;
         }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%; /* 限制 Canvas 最大宽度 */
+            border: 1px solid #ddd;
+        }
+        #result {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #333;
+        }
     </style>
 </head>
 <body>
-    <h1>图像预处理：灰度、二值化、膨胀与降噪</h1>
-    <!-- 文件选择框 -->
+    <h1>侦测「新單數」及数字区域</h1>
     <input type="file" id="fileInput" accept="image/*">
-    <h2>处理结果</h2>
-    <div id="results"></div>
+    <canvas id="canvas"></canvas>
+    <div id="result">上传图片以开始检测...</div>
 
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.3/dist/tesseract.min.js"></script>
     <script>
         const fileInput = document.getElementById('fileInput');
-        const resultsContainer = document.getElementById('results');
-
-        let image, originalCanvas, enhancedCanvas, grayCanvas, binaryCanvas, denoisedCanvas;
-        let currentStep = 0; // 跟踪处理步骤
-        let imageData, data;
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const result = document.getElementById('result');
 
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
-            if (!file) return;
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = new Image();
+                    img.src = reader.result;
+                    img.onload = () => {
+                        const scaleFactor = Math.min(800 / img.width, 800 / img.height, 1); // 调整缩放比例
+                        canvas.width = img.width * scaleFactor;
+                        canvas.height = img.height * scaleFactor;
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-            const reader = new FileReader();
-            reader.onload = () => {
-                image = new Image();
-                image.src = reader.result;
-
-                image.onload = () => {
-                    console.log("Image loaded successfully");
-                    resultsContainer.innerHTML = ''; // 清空之前的结果
-
-                    const scale = Math.min(1, window.innerWidth / image.width * 0.9);
-                    const scaledWidth = image.width * scale;
-                    const scaledHeight = image.height * scale;
-
-                    // 创建各个阶段的 Canvas
-                    originalCanvas = createCanvas(scaledWidth, scaledHeight);
-                    enhancedCanvas = createCanvas(scaledWidth, scaledHeight);
-                    grayCanvas = createCanvas(scaledWidth, scaledHeight);
-                    binaryCanvas = createCanvas(scaledWidth, scaledHeight);
-                    denoisedCanvas = createCanvas(scaledWidth, scaledHeight);
-
-                    const originalCtx = originalCanvas.getContext('2d');
-                    originalCtx.drawImage(image, 0, 0, scaledWidth, scaledHeight);
-                    resultsContainer.appendChild(originalCanvas);
-                    resultsContainer.insertAdjacentHTML('beforeend', '<strong>原始图像</strong>');
-
-                    // 开始逐步处理
-                    currentStep = 1;
-                    requestAnimationFrame(processStep);
+                        detectTextAndDrawNumberBox(ctx, canvas);
+                    };
                 };
-
-                image.onerror = () => {
-                    console.error("Error loading image");
-                };
-            };
-
-            reader.readAsDataURL(file);
+                reader.readAsDataURL(file);
+            }
         });
 
-        function createCanvas(width, height) {
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            return canvas;
-        }
+        async function detectTextAndDrawNumberBox(ctx, canvas) {
+            result.textContent = '正在识别文本和区域，请稍候...';
 
-        function processStep() {
-            switch (currentStep) {
-                case 1:
-                    enhanceContrast(originalCanvas);
-                    currentStep++;
-                    requestAnimationFrame(processStep);
-                    break;
-
-                case 2:
-                    preprocessImage(enhancedCanvas, 'gray');
-                    currentStep++;
-                    requestAnimationFrame(processStep);
-                    break;
-
-                case 3:
-                    preprocessImage(grayCanvas, 'adaptiveBinary');
-                    currentStep++;
-                    requestAnimationFrame(processStep);
-                    break;
-
-                case 4:
-                    applyMorphology(binaryCanvas, 'dilate');
-                    currentStep++;
-                    requestAnimationFrame(processStep);
-                    break;
-
-                case 5:
-                    resultsContainer.insertAdjacentHTML('beforeend', '<strong>处理完成</strong>');
-                    break;
-            }
-        }
-
-        function enhanceContrast(canvas) {
-            const ctx = canvas.getContext('2d');
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
+            const worker = Tesseract.createWorker({
+                logger: (m) => console.log(m),
+            });
 
-            const contrastFactor = 2.0;
+            await worker.load();
+            await worker.loadLanguage('chi_sim'); // 使用简体中文
+            await worker.initialize('chi_sim');
 
-            for (let i = 0; i < data.length; i += 4) {
-                for (let j = 0; j < 3; j++) {
-                    let pixel = data[i + j];
-                    pixel = ((pixel / 255.0 - 0.5) * contrastFactor + 0.5) * 255.0;
-                    data[i + j] = Math.min(255, Math.max(0, pixel));
+            const { data: { words } } = await worker.recognize(imageData);
+
+            // 遍历检测到的词，寻找「新單數」
+            let found = false;
+            words.forEach((word) => {
+                if (word.text === "新單數") {
+                    found = true;
+
+                    // 获取「新單數」文本框位置
+                    const x = word.bbox.x0;
+                    const y = word.bbox.y0;
+                    const width = word.bbox.x1 - word.bbox.x0;
+                    const height = word.bbox.y1 - word.bbox.y0;
+
+                    // 绘制「新單數」文本框
+                    ctx.strokeStyle = 'red';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x, y, width, height);
+
+                    // 在「新單數」右侧绘制一个数字矩形区域
+                    const numBoxX = x + width + 5; // 矩形起点在「新單數」右侧
+                    const numBoxWidth = 60; // 假设数字区域宽度为 60
+                    const numBoxHeight = height; // 高度与文本相同
+
+                    ctx.strokeStyle = 'blue';
+                    ctx.strokeRect(numBoxX, y, numBoxWidth, numBoxHeight);
+
+                    // 添加标注
+                    ctx.fillStyle = 'blue';
+                    ctx.font = '14px Arial';
+                    ctx.fillText('数字区域', numBoxX + 5, y - 5);
                 }
-            }
+            });
 
-            ctx.putImageData(imageData, 0, 0);
-            resultsContainer.appendChild(enhancedCanvas);
-            resultsContainer.insertAdjacentHTML('beforeend', '<strong>增强对比度图像</strong>');
+            result.textContent = found ? '成功找到并绘制「新單數」及数字区域' : '未找到「新單數」，请上传正确图片';
+
+            await worker.terminate();
         }
-
-        function preprocessImage(canvas, mode) {
-            const ctx = canvas.getContext('2d');
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-    
+    </script>
+</body>
+</html>
