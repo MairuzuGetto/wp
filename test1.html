@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>白色区域轮廓检测</title>
+    <title>侦测指定范围白色区域</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -24,11 +24,12 @@
     </style>
 </head>
 <body>
-    <h1>侦测白色区域并绘制轮廓</h1>
+    <h1>侦测指定范围白色区域</h1>
     <input type="file" id="fileInput" accept="image/*">
     <canvas id="canvas"></canvas>
     <div id="result">上传图片以开始检测...</div>
 
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.3/dist/tesseract.min.js"></script>
     <script>
         const fileInput = document.getElementById('fileInput');
         const canvas = document.getElementById('canvas');
@@ -48,23 +49,62 @@
                         canvas.height = img.height * scaleFactor;
                         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-                        detectWhiteRegion(ctx, canvas);
+                        detectTextAndWhiteRegion(ctx, canvas);
                     };
                 };
                 reader.readAsDataURL(file);
             }
         });
 
-        function detectWhiteRegion(ctx, canvas) {
+        async function detectTextAndWhiteRegion(ctx, canvas) {
+            result.textContent = '正在识别文本和区域，请稍候...';
+
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const worker = Tesseract.createWorker({
+                logger: (m) => console.log(m),
+            });
+
+            await worker.load();
+            await worker.loadLanguage('chi_sim'); // 使用简体中文
+            await worker.initialize('chi_sim');
+
+            const { data: { text } } = await worker.recognize(imageData);
+            const lines = text.split('\n').filter((line) => line.trim());
+
+            console.log('识别文本：', lines);
+
+            // 寻找「台北停車開單管理」和「確定」的位置
+            const position1 = text.indexOf('台北停車開單管理');
+            const position2 = text.indexOf('確定');
+
+            if (position1 !== -1 && position2 !== -1) {
+                // 假设文本在图像上的位置已经确定
+                const regionBounds = {
+                    x: 50, // 估计 X 坐标范围
+                    y1: 100, // 上边界 Y 坐标
+                    y2: 500, // 下边界 Y 坐标
+                    width: canvas.width - 100,
+                };
+
+                // 检测指定区域内的白色区域
+                detectWhiteRegion(ctx, canvas, regionBounds);
+            } else {
+                result.textContent = '未找到指定文本，无法确定区域范围';
+            }
+
+            await worker.terminate();
+        }
+
+        function detectWhiteRegion(ctx, canvas, bounds) {
+            const imageData = ctx.getImageData(bounds.x, bounds.y1, bounds.width, bounds.y2 - bounds.y1);
             const pixels = imageData.data;
             const whiteRegions = [];
             const threshold = 200; // 白色像素阈值
 
-            // 遍历所有像素，检测白色区域
-            for (let y = 0; y < canvas.height; y++) {
-                for (let x = 0; x < canvas.width; x++) {
-                    const index = (y * canvas.width + x) * 4;
+            // 遍历区域内的像素，检测白色区域
+            for (let y = 0; y < imageData.height; y++) {
+                for (let x = 0; x < imageData.width; x++) {
+                    const index = (y * imageData.width + x) * 4;
                     const r = pixels[index];
                     const g = pixels[index + 1];
                     const b = pixels[index + 2];
@@ -72,23 +112,22 @@
 
                     // 判断是否为白色像素
                     if (r > threshold && g > threshold && b > threshold && alpha > threshold) {
-                        whiteRegions.push({ x, y });
+                        whiteRegions.push({ x: bounds.x + x, y: bounds.y1 + y });
                     }
                 }
             }
 
             // 如果检测到白色区域，绘制轮廓
             if (whiteRegions.length > 0) {
-                const bounds = getBounds(whiteRegions);
-                drawContours(ctx, bounds);
-                result.textContent = `检测到白色区域，位置：x=${bounds.x}, y=${bounds.y}, 宽度=${bounds.width}, 高度=${bounds.height}`;
+                const whiteBounds = getBounds(whiteRegions);
+                drawContours(ctx, whiteBounds);
+                result.textContent = `白色区域范围：x=${whiteBounds.x}, y=${whiteBounds.y}, 宽度=${whiteBounds.width}, 高度=${whiteBounds.height}`;
             } else {
                 result.textContent = '未检测到白色区域';
             }
         }
 
         function getBounds(points) {
-            // 计算白色像素的边界
             const xs = points.map((p) => p.x);
             const ys = points.map((p) => p.y);
             return {
@@ -100,7 +139,6 @@
         }
 
         function drawContours(ctx, bounds) {
-            // 绘制白色区域轮廓
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
             ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
