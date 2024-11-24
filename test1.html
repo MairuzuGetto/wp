@@ -32,11 +32,8 @@
     <h1>原图</h1>
     <canvas id="canvas"></canvas>
     
-    <h1>灰度化结果</h1>
-    <canvas id="grayCanvas"></canvas>
-
-    <h1>二值化结果</h1>
-    <canvas id="binaryCanvas"></canvas>
+    <h1>处理后的结果</h1>
+    <canvas id="processedCanvas"></canvas>
 
     <h2>识别出的文字</h2>
     <pre id="textResult">等待识别...</pre>
@@ -45,11 +42,9 @@
     <script>
         const fileInput = document.getElementById('fileInput');
         const canvas = document.getElementById('canvas');
-        const grayCanvas = document.getElementById('grayCanvas');
-        const binaryCanvas = document.getElementById('binaryCanvas');
+        const processedCanvas = document.getElementById('processedCanvas');
         const ctx = canvas.getContext('2d');
-        const grayCtx = grayCanvas.getContext('2d');
-        const binaryCtx = binaryCanvas.getContext('2d');
+        const processedCtx = processedCanvas.getContext('2d');
         const textResult = document.getElementById('textResult');
 
         fileInput.addEventListener('change', (event) => {
@@ -62,23 +57,19 @@
                     image.src = reader.result;
 
                     image.onload = async () => {
-                        canvas.width = grayCanvas.width = binaryCanvas.width = image.width;
-                        canvas.height = grayCanvas.height = binaryCanvas.height = image.height;
+                        canvas.width = processedCanvas.width = image.width;
+                        canvas.height = processedCanvas.height = image.height;
 
                         // 绘制原始图像
                         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-                        // 灰度化处理
-                        grayCtx.drawImage(image, 0, 0, grayCanvas.width, grayCanvas.height);
-                        preprocessImage(grayCanvas, false);
-
-                        // 二值化处理
-                        binaryCtx.drawImage(image, 0, 0, binaryCanvas.width, binaryCanvas.height);
-                        preprocessImage(binaryCanvas, true);
+                        // 抗扭斜和裁剪处理
+                        textResult.textContent = '正在处理图像，请稍候...';
+                        await preprocessImage(image, processedCanvas);
 
                         // OCR 文字识别
                         textResult.textContent = '正在识别文字，请稍候...';
-                        const recognizedText = await extractText(binaryCanvas);
+                        const recognizedText = await extractText(processedCanvas);
                         textResult.textContent = `识别结果：\n${recognizedText}`;
                     };
                 };
@@ -87,30 +78,112 @@
             }
         });
 
-        function preprocessImage(canvas, binary = false) {
+        async function preprocessImage(image, canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+            // 使用 Tesseract 检测方向
+            const { createWorker } = Tesseract;
+            const worker = createWorker();
+
+            try {
+                await worker.load();
+                const detection = await worker.detect(canvas);
+                const angle = detection.data.orientation.angle;
+
+                // 抗扭斜：旋转图像
+                if (angle !== 0) {
+                    rotateCanvas(canvas, angle);
+                }
+
+                // 去边界：裁剪图像
+                cropCanvas(canvas);
+            } finally {
+                await worker.terminate();
+            }
+        }
+
+        function rotateCanvas(canvas, angle) {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            tempCanvas.width = canvas.height;
+            tempCanvas.height = canvas.width;
+
+            tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+            tempCtx.rotate((angle * Math.PI) / 180);
+            tempCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+
+            canvas.width = tempCanvas.width;
+            canvas.height = tempCanvas.height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(tempCanvas, 0, 0);
+        }
+
+        function cropCanvas(canvas) {
             const ctx = canvas.getContext('2d');
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
 
-            // 转灰度
-            for (let i = 0; i < data.length; i += 4) {
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                data[i] = data[i + 1] = data[i + 2] = gray;
-            }
+            // 检测边界（白色或黑色边框）
+            let top = 0, bottom = canvas.height, left = 0, right = canvas.width;
 
-            // 如果需要二值化
-            if (binary) {
-                for (let i = 0; i < data.length; i += 4) {
-                    const gray = data[i];
-                    const binary = gray > 128 ? 255 : 0;
-                    data[i] = data[i + 1] = data[i + 2] = binary;
+            outer: for (let y = 0; y < canvas.height; y++) {
+                for (let x = 0; x < canvas.width; x++) {
+                    const i = (y * canvas.width + x) * 4;
+                    if (data[i] < 200 || data[i + 1] < 200 || data[i + 2] < 200) {
+                        top = y;
+                        break outer;
+                    }
                 }
             }
 
-            ctx.putImageData(imageData, 0, 0);
+            outer: for (let y = canvas.height - 1; y >= 0; y--) {
+                for (let x = 0; x < canvas.width; x++) {
+                    const i = (y * canvas.width + x) * 4;
+                    if (data[i] < 200 || data[i + 1] < 200 || data[i + 2] < 200) {
+                        bottom = y;
+                        break outer;
+                    }
+                }
+            }
+
+            outer: for (let x = 0; x < canvas.width; x++) {
+                for (let y = 0; y < canvas.height; y++) {
+                    const i = (y * canvas.width + x) * 4;
+                    if (data[i] < 200 || data[i + 1] < 200 || data[i + 2] < 200) {
+                        left = x;
+                        break outer;
+                    }
+                }
+            }
+
+            outer: for (let x = canvas.width - 1; x >= 0; x--) {
+                for (let y = 0; y < canvas.height; y++) {
+                    const i = (y * canvas.width + x) * 4;
+                    if (data[i] < 200 || data[i + 1] < 200 || data[i + 2] < 200) {
+                        right = x;
+                        break outer;
+                    }
+                }
+            }
+
+            const width = right - left;
+            const height = bottom - top;
+
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+
+            tempCtx.drawImage(canvas, left, top, width, height, 0, 0, width, height);
+
+            canvas.width = width;
+            canvas.height = height;
+
+            ctx.drawImage(tempCanvas, 0, 0);
         }
 
         async function extractText(canvas) {
