@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文字识别与图像处理</title>
+    <title>OCR 去除水滴或污渍</title>
     <style>
         canvas {
             display: block;
@@ -32,8 +32,8 @@
     <h1>原图</h1>
     <canvas id="canvas"></canvas>
     
-    <h1>灰度化结果</h1>
-    <canvas id="grayCanvas"></canvas>
+    <h1>灰度化 + 去污渍结果</h1>
+    <canvas id="processedCanvas"></canvas>
 
     <h1>二值化结果</h1>
     <canvas id="binaryCanvas"></canvas>
@@ -45,10 +45,10 @@
     <script>
         const fileInput = document.getElementById('fileInput');
         const canvas = document.getElementById('canvas');
-        const grayCanvas = document.getElementById('grayCanvas');
+        const processedCanvas = document.getElementById('processedCanvas');
         const binaryCanvas = document.getElementById('binaryCanvas');
         const ctx = canvas.getContext('2d');
-        const grayCtx = grayCanvas.getContext('2d');
+        const processedCtx = processedCanvas.getContext('2d');
         const binaryCtx = binaryCanvas.getContext('2d');
         const textResult = document.getElementById('textResult');
 
@@ -62,21 +62,19 @@
                     image.src = reader.result;
 
                     image.onload = async () => {
-                        canvas.width = grayCanvas.width = binaryCanvas.width = image.width;
-                        canvas.height = grayCanvas.height = binaryCanvas.height = image.height;
+                        canvas.width = processedCanvas.width = binaryCanvas.width = image.width;
+                        canvas.height = processedCanvas.height = binaryCanvas.height = image.height;
 
                         // 绘制原始图像
                         ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-                        // 灰度化处理
-                        grayCtx.drawImage(image, 0, 0, grayCanvas.width, grayCanvas.height);
-                        preprocessImage(grayCanvas, false);
-                        cropCanvas(grayCanvas);
+                        // 图像去污渍和灰度化处理
+                        processedCtx.drawImage(image, 0, 0, processedCanvas.width, processedCanvas.height);
+                        removeArtifacts(processedCanvas);
 
                         // 二值化处理
-                        binaryCtx.drawImage(image, 0, 0, binaryCanvas.width, binaryCanvas.height);
-                        preprocessImage(binaryCanvas, true);
-                        cropCanvas(binaryCanvas);
+                        binaryCtx.drawImage(processedCanvas, 0, 0, binaryCanvas.width, binaryCanvas.height);
+                        binarizeImage(binaryCanvas);
 
                         // OCR 文字识别
                         textResult.textContent = '正在识别文字，请稍候...';
@@ -89,104 +87,83 @@
             }
         });
 
-        function preprocessImage(canvas, binary = false) {
+        // 去除水滴和污渍
+        function removeArtifacts(canvas) {
             const ctx = canvas.getContext('2d');
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
 
-            // 转灰度
             for (let i = 0; i < data.length; i += 4) {
                 const r = data[i];
                 const g = data[i + 1];
                 const b = data[i + 2];
-                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                data[i] = data[i + 1] = data[i + 2] = gray;
+                const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+
+                if (brightness > 200) { // 水滴可能是高亮区域
+                    data[i] = data[i + 1] = data[i + 2] = 255; // 填充为白色
+                }
             }
 
-            // 计算全局灰度平均值作为阈值
-    let sum = 0;
-    for (let i = 0; i < data.length; i += 4) {
-        sum += data[i];
-    }
-    const avg = sum / (data.length / 4);
-
-    // 二值化
-    for (let i = 0; i < data.length; i += 4) {
-        const binary = data[i] > avg ? 255 : 0;
-        data[i] = data[i + 1] = data[i + 2] = binary;
-    }
-
             ctx.putImageData(imageData, 0, 0);
+            applyGaussianBlur(canvas); // 增加模糊以平滑污渍
         }
 
-        function cropCanvas(canvas) {
+        // 应用高斯模糊
+        function applyGaussianBlur(canvas) {
             const ctx = canvas.getContext('2d');
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
 
-            let top = 0, bottom = canvas.height, left = 0, right = canvas.width;
+            const kernel = [
+                [1, 2, 1],
+                [2, 4, 2],
+                [1, 2, 1],
+            ];
+            const divisor = 16;
 
-            // 检测上边界
-            outer: for (let y = 0; y < canvas.height; y++) {
-                for (let x = 0; x < canvas.width; x++) {
-                    const i = (y * canvas.width + x) * 4;
-                    if (data[i] < 250 || data[i + 1] < 250 || data[i + 2] < 250) {
-                        top = y;
-                        break outer;
+            const width = canvas.width;
+            const height = canvas.height;
+            const blurred = new Uint8ClampedArray(data);
+
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    let r = 0, g = 0, b = 0;
+                    for (let ky = -1; ky <= 1; ky++) {
+                        for (let kx = -1; kx <= 1; kx++) {
+                            const pixelIndex = ((y + ky) * width + (x + kx)) * 4;
+                            const weight = kernel[ky + 1][kx + 1];
+                            r += data[pixelIndex] * weight;
+                            g += data[pixelIndex + 1] * weight;
+                            b += data[pixelIndex + 2] * weight;
+                        }
                     }
+                    const outputIndex = (y * width + x) * 4;
+                    blurred[outputIndex] = r / divisor;
+                    blurred[outputIndex + 1] = g / divisor;
+                    blurred[outputIndex + 2] = b / divisor;
                 }
             }
 
-            // 检测下边界
-            outer: for (let y = canvas.height - 1; y >= 0; y--) {
-                for (let x = 0; x < canvas.width; x++) {
-                    const i = (y * canvas.width + x) * 4;
-                    if (data[i] < 250 || data[i + 1] < 250 || data[i + 2] < 250) {
-                        bottom = y;
-                        break outer;
-                    }
-                }
-            }
-
-            // 检测左边界
-            outer: for (let x = 0; x < canvas.width; x++) {
-                for (let y = 0; y < canvas.height; y++) {
-                    const i = (y * canvas.width + x) * 4;
-                    if (data[i] < 250 || data[i + 1] < 250 || data[i + 2] < 250) {
-                        left = x;
-                        break outer;
-                    }
-                }
-            }
-
-            // 检测右边界
-            outer: for (let x = canvas.width - 1; x >= 0; x--) {
-                for (let y = 0; y < canvas.height; y++) {
-                    const i = (y * canvas.width + x) * 4;
-                    if (data[i] < 240 || data[i + 1] < 240 || data[i + 2] < 240) {
-                        right = x;
-                        break outer;
-                    }
-                }
-            }
-
-            const width = right - left + 1;
-            const height = bottom - top + 1;
-
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-
-            tempCanvas.width = width;
-            tempCanvas.height = height;
-
-            tempCtx.drawImage(canvas, left, top, width, height, 0, 0, width, height);
-
-            canvas.width = width;
-            canvas.height = height;
-
-            ctx.drawImage(tempCanvas, 0, 0);
+            imageData.data.set(blurred);
+            ctx.putImageData(imageData, 0, 0);
         }
 
+        // 二值化
+        function binarizeImage(canvas) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = data[i];
+                const binary = gray > 128 ? 255 : 0;
+                data[i] = data[i + 1] = data[i + 2] = binary;
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        // OCR 文字识别
         async function extractText(canvas) {
             const { createWorker } = Tesseract;
             const worker = createWorker();
