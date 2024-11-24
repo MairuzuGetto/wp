@@ -3,25 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>侦测白色区域</title>
+    <title>白色区域轮廓检测</title>
     <style>
-        canvas {
-            border: 1px solid #ddd;
-            margin-top: 10px;
-        }
-        pre {
-            background-color: #f4f4f4;
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
             padding: 10px;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%; /* 限制 Canvas 最大宽度 */
+            border: 1px solid #ddd;
+        }
+        #result {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #333;
         }
     </style>
 </head>
 <body>
-    <h1>上传图片并侦测白色区域</h1>
+    <h1>侦测白色区域并绘制轮廓</h1>
     <input type="file" id="fileInput" accept="image/*">
     <canvas id="canvas"></canvas>
-    <pre id="result">检测结果会显示在这里...</pre>
+    <div id="result">上传图片以开始检测...</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.1/dist/tesseract.min.js"></script>
     <script>
         const fileInput = document.getElementById('fileInput');
         const canvas = document.getElementById('canvas');
@@ -36,24 +43,25 @@
                     const img = new Image();
                     img.src = reader.result;
                     img.onload = () => {
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        ctx.drawImage(img, 0, 0);
+                        const scaleFactor = Math.min(800 / img.width, 800 / img.height, 1); // 调整缩放比例
+                        canvas.width = img.width * scaleFactor;
+                        canvas.height = img.height * scaleFactor;
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-                        // 开始侦测白色区域和文字
-                        detectWhiteRegion(ctx, canvas, img);
+                        detectWhiteRegion(ctx, canvas);
                     };
                 };
                 reader.readAsDataURL(file);
             }
         });
 
-        async function detectWhiteRegion(ctx, canvas, img) {
+        function detectWhiteRegion(ctx, canvas) {
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const pixels = imageData.data;
             const whiteRegions = [];
+            const threshold = 200; // 白色像素阈值
 
-            // 遍历像素检测白色区域
+            // 遍历所有像素，检测白色区域
             for (let y = 0; y < canvas.height; y++) {
                 for (let x = 0; x < canvas.width; x++) {
                     const index = (y * canvas.width + x) * 4;
@@ -62,28 +70,25 @@
                     const b = pixels[index + 2];
                     const alpha = pixels[index + 3];
 
-                    // 判断像素是否接近白色 (可以调整阈值)
-                    if (r > 200 && g > 200 && b > 200 && alpha > 200) {
+                    // 判断是否为白色像素
+                    if (r > threshold && g > threshold && b > threshold && alpha > threshold) {
                         whiteRegions.push({ x, y });
                     }
                 }
             }
 
-            // 如果检测到白色像素，标记区域
+            // 如果检测到白色区域，绘制轮廓
             if (whiteRegions.length > 0) {
                 const bounds = getBounds(whiteRegions);
-                highlightRegion(ctx, bounds);
-
-                // 使用 OCR 检测白色区域内的文字
-                const detectedText = await recognizeText(canvas, bounds);
-                result.textContent = `检测到的文字：${detectedText}`;
+                drawContours(ctx, bounds);
+                result.textContent = `检测到白色区域，位置：x=${bounds.x}, y=${bounds.y}, 宽度=${bounds.width}, 高度=${bounds.height}`;
             } else {
                 result.textContent = '未检测到白色区域';
             }
         }
 
         function getBounds(points) {
-            // 获取所有点的边界
+            // 计算白色像素的边界
             const xs = points.map((p) => p.x);
             const ys = points.map((p) => p.y);
             return {
@@ -94,42 +99,11 @@
             };
         }
 
-        function highlightRegion(ctx, bounds) {
+        function drawContours(ctx, bounds) {
+            // 绘制白色区域轮廓
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
             ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-        }
-
-        async function recognizeText(canvas, bounds) {
-            const { createWorker } = Tesseract;
-            const worker = createWorker();
-            const croppedCanvas = document.createElement('canvas');
-            const croppedCtx = croppedCanvas.getContext('2d');
-
-            // 裁剪白色区域
-            croppedCanvas.width = bounds.width;
-            croppedCanvas.height = bounds.height;
-            croppedCtx.drawImage(
-                canvas,
-                bounds.x,
-                bounds.y,
-                bounds.width,
-                bounds.height,
-                0,
-                0,
-                bounds.width,
-                bounds.height
-            );
-
-            try {
-                await worker.load();
-                await worker.loadLanguage('chi_sim');
-                await worker.initialize('chi_sim');
-                const { data } = await worker.recognize(croppedCanvas);
-                return data.text;
-            } finally {
-                await worker.terminate();
-            }
         }
     </script>
 </body>
