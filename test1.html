@@ -91,8 +91,8 @@
 
             try {
                 await worker.load();
-                await worker.loadLanguage('chi_sim'); // 中文识别
-                await worker.initialize('chi_sim');
+                await worker.loadLanguage('chi_tra'); // 中文识别
+                await worker.initialize('chi_tra');
                 const result = await worker.recognize(canvas);
                 return result.data.text.trim();
             } finally {
