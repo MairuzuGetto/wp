@@ -103,14 +103,18 @@
                 data[i] = data[i + 1] = data[i + 2] = gray;
             }
 
-            // 如果需要二值化
-            if (binary) {
-                for (let i = 0; i < data.length; i += 4) {
-                    const gray = data[i];
-                    const binary = gray > 128 ? 255 : 0;
-                    data[i] = data[i + 1] = data[i + 2] = binary;
-                }
-            }
+            // 计算全局灰度平均值作为阈值
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        sum += data[i];
+    }
+    const avg = sum / (data.length / 4);
+
+    // 二值化
+    for (let i = 0; i < data.length; i += 4) {
+        const binary = data[i] > avg ? 255 : 0;
+        data[i] = data[i + 1] = data[i + 2] = binary;
+    }
 
             ctx.putImageData(imageData, 0, 0);
         }
