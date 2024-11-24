@@ -130,43 +130,61 @@
         }
 
         function applyMorphology(canvas, operation) {
-            const ctx = canvas.getContext('2d');
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
 
-            const width = canvas.width;
-            const height = canvas.height;
+        const width = canvas.width;
+        const height = canvas.height;
 
-            const kernelSize = 3; // 核大小（3x3）
-            const halfKernel = Math.floor(kernelSize / 2);
+        const kernelSize = 3; // 核大小（3x3）
+        const halfKernel = Math.floor(kernelSize / 2);
 
-            // 创建副本数组，避免直接修改原图像数据
-            const copyData = new Uint8ClampedArray(data);
+        // 创建副本数组，避免直接修改原图像数据
+        const copyData = new Uint8ClampedArray(data);
 
+        const process = (isDilate) => {
             for (let y = halfKernel; y < height - halfKernel; y++) {
                 for (let x = halfKernel; x < width - halfKernel; x++) {
                     const index = (y * width + x) * 4;
-                    let shouldApply = false;
+                    let shouldApply = isDilate ? false : true;
 
                     // 检查 3x3 内核
                     for (let ky = -halfKernel; ky <= halfKernel; ky++) {
                         for (let kx = -halfKernel; kx <= halfKernel; kx++) {
                             const neighborIndex = ((y + ky) * width + (x + kx)) * 4;
-                            if (operation === 'dilate') {
-                                if (copyData[neighborIndex] === 255) {
-                                    shouldApply = true;
-                                }
+                            const neighborValue = copyData[neighborIndex];
+                            if (isDilate) {
+                                if (neighborValue === 255) shouldApply = true;
+                            } else {
+                                if (neighborValue === 0) shouldApply = false;
                             }
                         }
                     }
 
-                    // 设置膨胀结果
+                    // 设置膨胀或腐蚀结果
                     data[index] = data[index + 1] = data[index + 2] = shouldApply ? 255 : 0;
                 }
             }
+        };
 
+        if (operation === 'open') {
+            // 开操作：先腐蚀后膨胀
+            process(false); // 腐蚀
             ctx.putImageData(imageData, 0, 0);
+            process(true); // 膨胀
+        } else if (operation === 'close') {
+            // 闭操作：先膨胀后腐蚀
+            process(true); // 膨胀
+            ctx.putImageData(imageData, 0, 0);
+            process(false); // 腐蚀
+        } else {
+            // 单独的膨胀或腐蚀
+            process(operation === 'dilate');
         }
+
+        ctx.putImageData(imageData, 0, 0);
+    }
     </script>
 </body>
 </html>
