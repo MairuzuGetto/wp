@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="opencv.js"></script>
     <script src="tesseract.min.js"></script>
-    <title>OCR with OpenCV.js and Tesseract.js</title>
+    <title>数字区域检测与识别</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -19,7 +19,7 @@
             padding: 10px;
             border: 1px solid #ccc;
         }
-        #originalImage, #canvas {
+        #originalImage, #canvas, #croppedCanvas {
             display: block;
             margin: 10px 0;
             max-width: 100%;
@@ -36,8 +36,8 @@
 </head>
 <body>
 
-    <h1>数字识别</h1>
-    <p>上传一张图片，查看原图和处理后的图像，并提取数字。</p>
+    <h1>自动检测数字区域</h1>
+    <p>上传图片后自动检测数字区域并进行识别。</p>
     
     <!-- 图片上传 -->
     <input type="file" id="imageInput" accept="image/*">
@@ -48,16 +48,17 @@
     <!-- 显示处理后的图像 -->
     <canvas id="canvas"></canvas>
     
+    <!-- 显示裁剪的数字区域 -->
+    <canvas id="croppedCanvas"></canvas>
+    
     <!-- 显示识别结果 -->
     <div id="result"></div>
 
     <script>
-        // 等待 OpenCV.js 加载完毕
         cv.onRuntimeInitialized = () => {
             console.log('OpenCV.js is ready.');
         };
 
-        // 处理上传的图片
         document.getElementById('imageInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (file) {
@@ -71,34 +72,68 @@
                     originalImage.src = img.src;
 
                     img.onload = function() {
-                        // 创建 OpenCV Mat 对象并处理图像
-                        const mat = cv.imread(img);
+                        // 加载 OpenCV Mat 对象
+                        const src = cv.imread(img);
                         const gray = new cv.Mat();
                         const binary = new cv.Mat();
 
-                        // 转为灰度图
-                        cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY);
-                        // 二值化处理
+                        // 转灰度图
+                        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+                        // 二值化
                         cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
 
-                        // 在 Canvas 上显示处理后的图片
+                        // 找到轮廓
+                        const contours = new cv.MatVector();
+                        const hierarchy = new cv.Mat();
+                        cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+                        // 遍历轮廓，找到最大的矩形区域（假设数字区域最大）
+                        let largestRect = null;
+                        let largestArea = 0;
+                        for (let i = 0; i < contours.size(); i++) {
+                            const contour = contours.get(i);
+                            const rect = cv.boundingRect(contour);
+                            const area = rect.width * rect.height;
+
+                            // 条件：确保是合理的数字区域（避免噪声）
+                            if (area > largestArea && rect.width > 20 && rect.height > 20) {
+                                largestArea = area;
+                                largestRect = rect;
+                            }
+                        }
+
+                        // 如果找到数字区域
+                        if (largestRect) {
+                            const cropped = binary.roi(largestRect);
+                            const croppedCanvas = document.getElementById('croppedCanvas');
+
+                            // 将裁剪结果显示在 canvas 上
+                            cv.imshow(croppedCanvas, cropped);
+
+                            // 使用 Tesseract.js 识别裁剪区域
+                            Tesseract.recognize(croppedCanvas, 'chi_sim') // 简体中文；改为 'chi_tra' 可用于繁体中文
+                                .then(({ data: { text } }) => {
+                                    const numbers = text.match(/\b\d+\b/g); // 提取纯数字
+                                    document.getElementById('result').innerText = numbers ? numbers.join(', ') : '未找到数字';
+                                })
+                                .catch(err => console.error(err));
+
+                            // 释放裁剪区域 Mat
+                            cropped.delete();
+                        } else {
+                            document.getElementById('result').innerText = '未找到数字区域';
+                        }
+
+                        // 显示二值化图像
                         cv.imshow('canvas', binary);
 
-                        // 使用 Tesseract.js 进行 OCR
-                        const canvas = document.getElementById('canvas');
-                        Tesseract.recognize(canvas, 'chi_tra') // 简体中文；改为 'chi_tra' 可用于繁体中文
-                            .then(({ data: { text } }) => {
-                                // 提取纯数字
-                                const numbers = text.match(/\b\d+\b/g);
-                                // 显示识别结果
-                                document.getElementById('result').innerText = numbers ? numbers.join(', ') : '未找到数字';
-                            })
-                            .catch(err => console.error(err));
-
                         // 释放内存
-                        mat.delete();
+                        src.delete();
                         gray.delete();
                         binary.delete();
+                        contours.delete();
+                        hierarchy.delete();
                     };
                 };
                 reader.readAsDataURL(file);
