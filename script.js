@@ -1,25 +1,17 @@
-const fileInput = document.getElementById('fileInput');
-const canvas = document.getElementById('canvas');
-const output = document.getElementById('output');
-const ctx = canvas.getContext('2d');
-
-fileInput.addEventListener('change', (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => processImage(reader.result);
-    reader.readAsDataURL(file);
-});
-
 async function processImage(imageSrc) {
     const img = new Image();
     img.src = imageSrc;
 
     img.onload = async () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+        // Resize image for mobile (max width 1024px)
+        const maxWidth = 1024;
+        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+        const newWidth = img.width * scale;
+        const newHeight = img.height * scale;
+
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        ctx.drawImage(img, 0, 0, newWidth, newHeight);
 
         // Load OpenCV.js Mat
         const src = cv.imread(canvas);
