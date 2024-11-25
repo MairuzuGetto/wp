@@ -47,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         Tesseract.recognize(
             processedImageData,       // 图像数据
-            'eng',                    // 语言
+            'eng+chi_tra',                    // 语言
             {
                 logger: (info) => console.log(info), // 可选：查看识别进度
             }
