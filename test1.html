@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="opencv.js"></script>
     <script src="tesseract.min.js"></script>
-    <title>数字区域检测与识别</title>
+    <title>优化数字区域检测</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -36,22 +36,13 @@
 </head>
 <body>
 
-    <h1>自动检测数字区域</h1>
-    <p>上传图片后自动检测数字区域并进行识别。</p>
+    <h1>自动优化数字检测</h1>
+    <p>上传图片后自动检测数字区域并优化裁剪。</p>
     
-    <!-- 图片上传 -->
     <input type="file" id="imageInput" accept="image/*">
-    
-    <!-- 显示原始图片 -->
     <img id="originalImage" alt="原始图片预览">
-    
-    <!-- 显示处理后的图像 -->
     <canvas id="canvas"></canvas>
-    
-    <!-- 显示裁剪的数字区域 -->
     <canvas id="croppedCanvas"></canvas>
-    
-    <!-- 显示识别结果 -->
     <div id="result"></div>
 
     <script>
@@ -72,7 +63,6 @@
                     originalImage.src = img.src;
 
                     img.onload = function() {
-                        // 加载 OpenCV Mat 对象
                         const src = cv.imread(img);
                         const gray = new cv.Mat();
                         const binary = new cv.Mat();
@@ -80,46 +70,62 @@
                         // 转灰度图
                         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-                        // 二值化
-                        cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+                        // 自适应阈值处理
+                        cv.adaptiveThreshold(
+                            gray, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2
+                        );
 
                         // 找到轮廓
                         const contours = new cv.MatVector();
                         const hierarchy = new cv.Mat();
                         cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-                        // 遍历轮廓，找到最大的矩形区域（假设数字区域最大）
+                        // 遍历轮廓
                         let largestRect = null;
                         let largestArea = 0;
                         for (let i = 0; i < contours.size(); i++) {
                             const contour = contours.get(i);
                             const rect = cv.boundingRect(contour);
+                            const aspectRatio = rect.width / rect.height;
                             const area = rect.width * rect.height;
 
-                            // 条件：确保是合理的数字区域（避免噪声）
-                            if (area > largestArea && rect.width > 20 && rect.height > 20) {
+                            // 条件：宽高比接近数字的特征，面积足够大
+                            if (
+                                area > largestArea &&
+                                aspectRatio > 0.3 && aspectRatio < 5 &&
+                                rect.width > 20 && rect.height > 20
+                            ) {
                                 largestArea = area;
                                 largestRect = rect;
                             }
                         }
 
-                        // 如果找到数字区域
+                        // 如果找到合理的矩形
                         if (largestRect) {
-                            const cropped = binary.roi(largestRect);
-                            const croppedCanvas = document.getElementById('croppedCanvas');
+                            const { x, y, width, height } = largestRect;
 
-                            // 将裁剪结果显示在 canvas 上
+                            // 扩展裁剪区域（去除紧贴边缘的干扰）
+                            const padding = 5;
+                            const cropX = Math.max(x - padding, 0);
+                            const cropY = Math.max(y - padding, 0);
+                            const cropWidth = Math.min(width + 2 * padding, binary.cols - cropX);
+                            const cropHeight = Math.min(height + 2 * padding, binary.rows - cropY);
+
+                            // 裁剪数字区域
+                            const cropped = binary.roi(new cv.Rect(cropX, cropY, cropWidth, cropHeight));
+
+                            // 显示裁剪结果
+                            const croppedCanvas = document.getElementById('croppedCanvas');
                             cv.imshow(croppedCanvas, cropped);
 
-                            // 使用 Tesseract.js 识别裁剪区域
-                            Tesseract.recognize(croppedCanvas, 'chi_sim') // 简体中文；改为 'chi_tra' 可用于繁体中文
+                            // OCR 识别
+                            Tesseract.recognize(croppedCanvas, 'chi_sim')
                                 .then(({ data: { text } }) => {
-                                    const numbers = text.match(/\b\d+\b/g); // 提取纯数字
+                                    const numbers = text.match(/\b\d+\b/g);
                                     document.getElementById('result').innerText = numbers ? numbers.join(', ') : '未找到数字';
                                 })
                                 .catch(err => console.error(err));
 
-                            // 释放裁剪区域 Mat
                             cropped.delete();
                         } else {
                             document.getElementById('result').innerText = '未找到数字区域';
