@@ -3,139 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="opencv.js"></script>
-    <script src="tesseract.min.js"></script>
-    <title>优化数字检测 - 调整条件</title>
+    <title>Image OCR with OpenCV.js and Tesseract.js</title>
+    <script src="https://cdn.jsdelivr.net/npm/opencv.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            padding: 10px;
-            background-color: #f4f4f4;
+            text-align: center;
+            margin: 20px;
         }
-        #imageInput {
-            margin: 10px 0;
-            display: block;
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-        }
-        #originalImage, #canvas, #croppedCanvas {
-            display: block;
-            margin: 10px 0;
-            max-width: 100%;
-            border: 1px solid #ccc;
-        }
-        #result {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #fff;
-            border: 1px solid #ccc;
-            word-wrap: break-word;
+        canvas {
+            margin: 20px 0;
         }
     </style>
 </head>
 <body>
-
-    <h1>调整数字检测条件</h1>
-    <p>上传图片后尝试多个轮廓识别数字。</p>
-    
-    <input type="file" id="imageInput" accept="image/*">
-    <img id="originalImage" alt="原始图片预览">
+    <h1>Image OCR with OpenCV.js and Tesseract.js</h1>
+    <input type="file" id="fileInput" accept="image/*"><br><br>
     <canvas id="canvas"></canvas>
-    <canvas id="croppedCanvas"></canvas>
-    <div id="result"></div>
-
-    <script>
-        cv.onRuntimeInitialized = () => {
-            console.log('OpenCV.js is ready.');
-        };
-
-        document.getElementById('imageInput').addEventListener('change', function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.src = e.target.result;
-
-                    // 显示原始图片
-                    const originalImage = document.getElementById('originalImage');
-                    originalImage.src = img.src;
-
-                    img.onload = function() {
-                        const src = cv.imread(img);
-                        const gray = new cv.Mat();
-                        const binary = new cv.Mat();
-
-                        // 转灰度图
-                        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-
-                        // 尝试全局二值化
-                        cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
-
-                        // 找到轮廓
-                        const contours = new cv.MatVector();
-                        const hierarchy = new cv.Mat();
-                        cv.findContours(binary, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
-
-                        // 存储检测到的数字区域
-                        const detectedNumbers = [];
-                        for (let i = 0; i < contours.size(); i++) {
-                            const contour = contours.get(i);
-                            const rect = cv.boundingRect(contour);
-                            const area = rect.width * rect.height;
-                            const aspectRatio = rect.width / rect.height;
-
-                            // 条件：宽高比和面积限制放宽
-                            if (area > 200 && aspectRatio > 0.2 && aspectRatio < 10) {
-                                const { x, y, width, height } = rect;
-
-                                // 扩展裁剪区域（减少边缘噪声影响）
-                                const padding = 5;
-                                const cropX = Math.max(x - padding, 0);
-                                const cropY = Math.max(y - padding, 0);
-                                const cropWidth = Math.min(width + 2 * padding, binary.cols - cropX);
-                                const cropHeight = Math.min(height + 2 * padding, binary.rows - cropY);
-
-                                // 裁剪数字区域
-                                const cropped = binary.roi(new cv.Rect(cropX, cropY, cropWidth, cropHeight));
-
-                                // 使用 Tesseract.js 识别
-                                const canvas = document.createElement('canvas');
-                                canvas.width = cropWidth;
-                                canvas.height = cropHeight;
-                                cv.imshow(canvas, cropped);
-
-                                Tesseract.recognize(canvas, 'chi_sim')
-                                    .then(({ data: { text } }) => {
-                                        const numbers = text.match(/\b\d+\b/g);
-                                        if (numbers) {
-                                            detectedNumbers.push(...numbers);
-                                        }
-
-                                        // 显示识别结果
-                                        document.getElementById('result').innerText = detectedNumbers.join(', ');
-                                    })
-                                    .catch(err => console.error(err));
-
-                                cropped.delete();
-                            }
-                        }
-
-                        // 显示二值化图像
-                        cv.imshow('canvas', binary);
-
-                        // 释放内存
-                        src.delete();
-                        gray.delete();
-                        binary.delete();
-                        contours.delete();
-                        hierarchy.delete();
-                    };
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    </script>
+    <h3>Recognized Text</h3>
+    <pre id="output"></pre>
+    <script src="script.js"></script>
 </body>
 </html>
