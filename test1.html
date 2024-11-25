@@ -3,39 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>数字识别</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 20px;
-        }
-        #canvas {
-            border: 1px solid black;
-            margin: 20px 0;
-        }
-        button, input {
-            margin: 10px;
-            padding: 10px;
-        }
-        #output {
-            margin-top: 20px;
-            font-size: 18px;
-            font-weight: bold;
-        }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+    <title>OCR with Tesseract.js</title>
 </head>
 <body>
-    <h1>数字识别工具</h1>
-    <input type="file" id="imageInput" accept="image/*">
-    <canvas id="canvas"></canvas>
-    <button id="detectButton">识别数字</button>
-    <div id="output"></div>
+    <input type="file" id="imageInput">
+    <div id="result"></div>
 
-    <!-- 引入 OpenCV.js 和 Tesseract.js -->
-    <script src="opencv.js"></script>
-    <script src="tesseract.min.js"></script>
-    <!-- 引入逻辑代码 -->
-    <script src="script.js"></script>
+    <script>
+        document.getElementById('imageInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function() {
+                        // 使用 Tesseract.js 進行 OCR
+                        Tesseract.recognize(img.src, 'chi_sim') // 簡體中文；改為 'chi_tra' 可用於繁體中文
+                            .then(({ data: { text } }) => {
+                                // 提取純數字
+                                const numbers = text.match(/\b\d+\b/g);
+                                document.getElementById('result').innerText = numbers ? numbers.join(', ') : 'No numbers found';
+                            })
+                            .catch(err => console.error(err));
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
 </body>
 </html>
