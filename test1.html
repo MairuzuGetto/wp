@@ -40,9 +40,9 @@
 <body>
   <h1>Submit Numbers</h1>
   <form id="google-form">
-    <input type="number" name="entry.123456789" placeholder="Enter Number 1" required><br>
-    <input type="number" name="entry.987654321" placeholder="Enter Number 2" required><br>
-    <input type="number" name="entry.567890123" placeholder="Enter Number 3" required><br>
+    <input type="number" name="entry.49697711" placeholder="新单数" required><br>
+    <input type="number" name="entry.1960312130" placeholder="上传市府点数" required><br>
+    <input type="number" name="entry.777425966" placeholder="劳务费点数" required><br>
     <button type="button" id="submit-btn">Submit</button>
   </form>
   <div id="message">Your response has been submitted!</div>
@@ -52,7 +52,7 @@
       const form = document.getElementById('google-form');
       const formData = new FormData(form);
 
-      fetch("https://docs.google.com/forms/d/e/YOUR_FORM_ID/formResponse", {
+      fetch("https://docs.google.com/forms/u/0/d/e/1FAIpQLSdao9MzcZ7wVy9Q4VrHFobWbYirIjuIs3ei66yOQ26qXENJ2g/formResponse", {
         method: "POST",
         body: formData,
         mode: "no-cors" // 避免跨域报错
