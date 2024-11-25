@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant-TW">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -29,15 +29,43 @@
     button:hover {
       background-color: #45a049;
     }
+    #message {
+      margin-top: 20px;
+      font-size: 18px;
+      color: green;
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <h1>今日上传点数</h1>
-  <form id="google-form" action="https://docs.google.com/forms/u/0/d/e/1FAIpQLSdao9MzcZ7wVy9Q4VrHFobWbYirIjuIs3ei66yOQ26qXENJ2g/formResponse" method="POST" target="_blank">
-    <input type="number" name="entry.49697711" placeholder="新单数" required><br>
-    <input type="number" name="entry.1960312130" placeholder="上传市府点数" required><br>
-    <input type="number" name="entry.777425966" placeholder="劳务费点数" required><br>
-    <button type="submit">上传</button>
+  <h1>Submit Numbers</h1>
+  <form id="google-form">
+    <input type="number" name="entry.123456789" placeholder="Enter Number 1" required><br>
+    <input type="number" name="entry.987654321" placeholder="Enter Number 2" required><br>
+    <input type="number" name="entry.567890123" placeholder="Enter Number 3" required><br>
+    <button type="button" id="submit-btn">Submit</button>
   </form>
+  <div id="message">Your response has been submitted!</div>
+
+  <script>
+    document.getElementById('submit-btn').addEventListener('click', function() {
+      const form = document.getElementById('google-form');
+      const formData = new FormData(form);
+
+      fetch("https://docs.google.com/forms/d/e/YOUR_FORM_ID/formResponse", {
+        method: "POST",
+        body: formData,
+        mode: "no-cors" // 避免跨域报错
+      })
+      .then(() => {
+        document.getElementById('message').style.display = 'block'; // 显示成功信息
+        form.reset(); // 清空表单
+      })
+      .catch(error => {
+        console.error('Error:', error);
+      });
+    });
+  </script>
 </body>
 </html>
+
