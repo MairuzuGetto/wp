@@ -5,9 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
     <title>OCR with Tesseract.js</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 10px;
+            background-color: #f4f4f4;
+        }
+        #imageInput {
+            margin: 10px 0;
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            word-wrap: break-word;
+        }
+    </style>
 </head>
 <body>
-    <input type="file" id="imageInput">
+
+    <h1>数字识别</h1>
+    <p>上传一张图片，提取其中的数字。</p>
+    
+    <!-- 图片上传 -->
+    <input type="file" id="imageInput" accept="image/*">
+    
+    <!-- 显示结果 -->
     <div id="result"></div>
 
     <script>
@@ -19,12 +47,13 @@
                     const img = new Image();
                     img.src = e.target.result;
                     img.onload = function() {
-                        // 使用 Tesseract.js 進行 OCR
-                        Tesseract.recognize(img.src, 'chi_sim') // 簡體中文；改為 'chi_tra' 可用於繁體中文
+                        // 使用 Tesseract.js 进行 OCR
+                        Tesseract.recognize(img.src, 'chi_sim') // 简体中文；改为 'chi_tra' 可用于繁体中文
                             .then(({ data: { text } }) => {
-                                // 提取純數字
+                                // 提取纯数字
                                 const numbers = text.match(/\b\d+\b/g);
-                                document.getElementById('result').innerText = numbers ? numbers.join(', ') : 'No numbers found';
+                                // 显示结果
+                                document.getElementById('result').innerText = numbers ? numbers.join(', ') : '未找到数字';
                             })
                             .catch(err => console.error(err));
                     };
