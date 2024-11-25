@@ -86,7 +86,7 @@
 
                         // 使用 Tesseract.js 进行 OCR
                         const canvas = document.getElementById('canvas');
-                        Tesseract.recognize(canvas, 'chi_sim') // 简体中文；改为 'chi_tra' 可用于繁体中文
+                        Tesseract.recognize(canvas, 'chi_tra') // 简体中文；改为 'chi_tra' 可用于繁体中文
                             .then(({ data: { text } }) => {
                                 // 提取纯数字
                                 const numbers = text.match(/\b\d+\b/g);
