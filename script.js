@@ -1,52 +1,66 @@
-document.getElementById('imageUpload').addEventListener('change', async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+document.addEventListener("DOMContentLoaded", () => {
+    const imageInput = document.getElementById("imageInput");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const detectButton = document.getElementById("detectButton");
+    const output = document.getElementById("output");
 
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
+    let img = new Image();
 
-    img.onload = async () => {
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+    // 载入图片
+    imageInput.addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // 图片加载完成后绘制到 canvas
+    img.onload = () => {
         canvas.width = img.width;
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
+    };
 
-        // 使用 Tesseract.js 進行文字識別
-        const { data: { words } } = await Tesseract.recognize(img.src, 'chi_sim'); // 簡體中文
-        console.log(words);
+    // 检测数字
+    detectButton.addEventListener("click", () => {
+        // 获取 canvas 数据
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-        // 查找目標文字的位置
-        const targetWord = '台北市停車開單管理';
-        let targetBox = null;
+        // 使用 OpenCV 预处理图像
+        const src = cv.matFromImageData(imageData);
+        const gray = new cv.Mat();
+        const thresh = new cv.Mat();
 
-        words.forEach(word => {
-            if (word.text.includes(targetWord)) {
-                targetBox = word.bbox; // 獲取文字邊界框
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+        cv.threshold(gray, thresh, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
+
+        // 将处理后的图像重新绘制到 canvas
+        cv.imshow(canvas, thresh);
+
+        // 将图像数据传递给 Tesseract.js
+        const processedImageData = canvas.toDataURL("image/png");
+
+        Tesseract.recognize(
+            processedImageData,       // 图像数据
+            'eng',                    // 语言
+            {
+                logger: (info) => console.log(info), // 可选：查看识别进度
             }
+        ).then(({ data: { text } }) => {
+            output.textContent = text; // 输出识别结果
+        }).catch((error) => {
+            console.error(error);
+            output.textContent = "识别失败!";
         });
 
-        if (!targetBox) {
-            alert('未找到目標文字！');
-            return;
-        }
-
-        // 計算裁剪區域（基於目標文字位置調整）
-        const { x0, y0, x1, y1 } = targetBox;
-        const cropX = x0;
-        const cropY = y1 + 10; // 偏移文字框的底部
-        const cropWidth = x1 - x0;
-        const cropHeight = 100; // 自定義裁剪高度
-
-        // 裁剪圖片
-        const croppedCanvas = document.createElement('canvas');
-        croppedCanvas.width = cropWidth;
-        croppedCanvas.height = cropHeight;
-        const croppedCtx = croppedCanvas.getContext('2d');
-        croppedCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-
-        // 顯示裁剪結果
-        const croppedImage = document.getElementById('resultImage');
-        croppedImage.src = croppedCanvas.toDataURL();
-    };
+        // 清理内存
+        src.delete();
+        gray.delete();
+        thresh.delete();
+    });
 });
