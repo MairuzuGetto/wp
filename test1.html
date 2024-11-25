@@ -1,28 +1,43 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image OCR with OpenCV.js and Tesseract.js</title>
-    <script src="opencv.js"></script>
-    <script src="tesseract.min.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin: 20px;
-        }
-        canvas {
-            margin: 20px 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Store Numbers</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      text-align: center;
+    }
+    form {
+      margin-top: 20px;
+    }
+    input {
+      margin: 10px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
 </head>
 <body>
-    <h1>Image OCR with OpenCV.js and Tesseract.js</h1>
-    <input type="file" id="fileInput" accept="image/*"><br><br>
-    <canvas id="canvas"></canvas>
-    <h3>Recognized Text</h3>
-    <pre id="output"></pre>
-    <script src="script.js"></script>
+  <h1>Submit Numbers</h1>
+  <form id="google-form" action="https://docs.google.com/forms/d/e/YOUR_FORM_ID/formResponse" method="POST" target="_blank">
+    <input type="number" name="entry.123456789" placeholder="Enter Number 1" required><br>
+    <input type="number" name="entry.987654321" placeholder="Enter Number 2" required><br>
+    <input type="number" name="entry.567890123" placeholder="Enter Number 3" required><br>
+    <button type="submit">Submit</button>
+  </form>
 </body>
 </html>
