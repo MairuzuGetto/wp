@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="esseract.min.js"></script>
-    <title>OCR with Tesseract.js</title>
+    <script src="opencv.js"></script>
+    <script src="tesseract.min.js"></script>
+    <title>OCR with OpenCV.js and Tesseract.js</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -17,6 +18,9 @@
             width: 100%;
             padding: 10px;
             border: 1px solid #ccc;
+        }
+        #canvas {
+            display: none;
         }
         #result {
             margin-top: 20px;
@@ -35,10 +39,19 @@
     <!-- 图片上传 -->
     <input type="file" id="imageInput" accept="image/*">
     
-    <!-- 显示结果 -->
+    <!-- 用于显示图像处理结果的 canvas -->
+    <canvas id="canvas"></canvas>
+    
+    <!-- 显示识别结果 -->
     <div id="result"></div>
 
     <script>
+        // 等待 OpenCV.js 加载完毕
+        cv.onRuntimeInitialized = () => {
+            console.log('OpenCV.js is ready.');
+        };
+
+        // 处理上传的图片
         document.getElementById('imageInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (file) {
@@ -47,15 +60,34 @@
                     const img = new Image();
                     img.src = e.target.result;
                     img.onload = function() {
+                        // 创建 OpenCV Mat 对象并处理图像
+                        const mat = cv.imread(img);
+                        const gray = new cv.Mat();
+                        const binary = new cv.Mat();
+
+                        // 转为灰度图
+                        cv.cvtColor(mat, gray, cv.COLOR_RGBA2GRAY);
+                        // 二值化处理
+                        cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+
+                        // 在 Canvas 上显示处理后的图片
+                        cv.imshow('canvas', binary);
+
                         // 使用 Tesseract.js 进行 OCR
-                        Tesseract.recognize(img.src, 'chi_sim') // 简体中文；改为 'chi_tra' 可用于繁体中文
+                        const canvas = document.getElementById('canvas');
+                        Tesseract.recognize(canvas, 'chi_sim') // 简体中文；改为 'chi_tra' 可用于繁体中文
                             .then(({ data: { text } }) => {
                                 // 提取纯数字
                                 const numbers = text.match(/\b\d+\b/g);
-                                // 显示结果
+                                // 显示识别结果
                                 document.getElementById('result').innerText = numbers ? numbers.join(', ') : '未找到数字';
                             })
                             .catch(err => console.error(err));
+
+                        // 释放内存
+                        mat.delete();
+                        gray.delete();
+                        binary.delete();
                     };
                 };
                 reader.readAsDataURL(file);
