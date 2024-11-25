@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="opencv.js"></script>
     <script src="tesseract.min.js"></script>
-    <title>优化数字区域检测</title>
+    <title>优化数字检测 - 调整条件</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -36,8 +36,8 @@
 </head>
 <body>
 
-    <h1>自动优化数字检测</h1>
-    <p>上传图片后自动检测数字区域并优化裁剪。</p>
+    <h1>调整数字检测条件</h1>
+    <p>上传图片后尝试多个轮廓识别数字。</p>
     
     <input type="file" id="imageInput" accept="image/*">
     <img id="originalImage" alt="原始图片预览">
@@ -70,65 +70,56 @@
                         // 转灰度图
                         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-                        // 自适应阈值处理
-                        cv.adaptiveThreshold(
-                            gray, binary, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2
-                        );
+                        // 尝试全局二值化
+                        cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
 
                         // 找到轮廓
                         const contours = new cv.MatVector();
                         const hierarchy = new cv.Mat();
-                        cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+                        cv.findContours(binary, contours, hierarchy, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
 
-                        // 遍历轮廓
-                        let largestRect = null;
-                        let largestArea = 0;
+                        // 存储检测到的数字区域
+                        const detectedNumbers = [];
                         for (let i = 0; i < contours.size(); i++) {
                             const contour = contours.get(i);
                             const rect = cv.boundingRect(contour);
-                            const aspectRatio = rect.width / rect.height;
                             const area = rect.width * rect.height;
+                            const aspectRatio = rect.width / rect.height;
 
-                            // 条件：宽高比接近数字的特征，面积足够大
-                            if (
-                                area > largestArea &&
-                                aspectRatio > 0.3 && aspectRatio < 5 &&
-                                rect.width > 20 && rect.height > 20
-                            ) {
-                                largestArea = area;
-                                largestRect = rect;
+                            // 条件：宽高比和面积限制放宽
+                            if (area > 200 && aspectRatio > 0.2 && aspectRatio < 10) {
+                                const { x, y, width, height } = rect;
+
+                                // 扩展裁剪区域（减少边缘噪声影响）
+                                const padding = 5;
+                                const cropX = Math.max(x - padding, 0);
+                                const cropY = Math.max(y - padding, 0);
+                                const cropWidth = Math.min(width + 2 * padding, binary.cols - cropX);
+                                const cropHeight = Math.min(height + 2 * padding, binary.rows - cropY);
+
+                                // 裁剪数字区域
+                                const cropped = binary.roi(new cv.Rect(cropX, cropY, cropWidth, cropHeight));
+
+                                // 使用 Tesseract.js 识别
+                                const canvas = document.createElement('canvas');
+                                canvas.width = cropWidth;
+                                canvas.height = cropHeight;
+                                cv.imshow(canvas, cropped);
+
+                                Tesseract.recognize(canvas, 'chi_sim')
+                                    .then(({ data: { text } }) => {
+                                        const numbers = text.match(/\b\d+\b/g);
+                                        if (numbers) {
+                                            detectedNumbers.push(...numbers);
+                                        }
+
+                                        // 显示识别结果
+                                        document.getElementById('result').innerText = detectedNumbers.join(', ');
+                                    })
+                                    .catch(err => console.error(err));
+
+                                cropped.delete();
                             }
-                        }
-
-                        // 如果找到合理的矩形
-                        if (largestRect) {
-                            const { x, y, width, height } = largestRect;
-
-                            // 扩展裁剪区域（去除紧贴边缘的干扰）
-                            const padding = 5;
-                            const cropX = Math.max(x - padding, 0);
-                            const cropY = Math.max(y - padding, 0);
-                            const cropWidth = Math.min(width + 2 * padding, binary.cols - cropX);
-                            const cropHeight = Math.min(height + 2 * padding, binary.rows - cropY);
-
-                            // 裁剪数字区域
-                            const cropped = binary.roi(new cv.Rect(cropX, cropY, cropWidth, cropHeight));
-
-                            // 显示裁剪结果
-                            const croppedCanvas = document.getElementById('croppedCanvas');
-                            cv.imshow(croppedCanvas, cropped);
-
-                            // OCR 识别
-                            Tesseract.recognize(croppedCanvas, 'chi_sim')
-                                .then(({ data: { text } }) => {
-                                    const numbers = text.match(/\b\d+\b/g);
-                                    document.getElementById('result').innerText = numbers ? numbers.join(', ') : '未找到数字';
-                                })
-                                .catch(err => console.error(err));
-
-                            cropped.delete();
-                        } else {
-                            document.getElementById('result').innerText = '未找到数字区域';
                         }
 
                         // 显示二值化图像
