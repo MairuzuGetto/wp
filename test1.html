@@ -19,8 +19,11 @@
             padding: 10px;
             border: 1px solid #ccc;
         }
-        #canvas {
-            display: none;
+        #originalImage, #canvas {
+            display: block;
+            margin: 10px 0;
+            max-width: 100%;
+            border: 1px solid #ccc;
         }
         #result {
             margin-top: 20px;
@@ -34,12 +37,15 @@
 <body>
 
     <h1>数字识别</h1>
-    <p>上传一张图片，提取其中的数字。</p>
+    <p>上传一张图片，查看原图和处理后的图像，并提取数字。</p>
     
     <!-- 图片上传 -->
     <input type="file" id="imageInput" accept="image/*">
     
-    <!-- 用于显示图像处理结果的 canvas -->
+    <!-- 显示原始图片 -->
+    <img id="originalImage" alt="原始图片预览">
+    
+    <!-- 显示处理后的图像 -->
     <canvas id="canvas"></canvas>
     
     <!-- 显示识别结果 -->
@@ -59,6 +65,11 @@
                 reader.onload = function(e) {
                     const img = new Image();
                     img.src = e.target.result;
+
+                    // 显示原始图片
+                    const originalImage = document.getElementById('originalImage');
+                    originalImage.src = img.src;
+
                     img.onload = function() {
                         // 创建 OpenCV Mat 对象并处理图像
                         const mat = cv.imread(img);
